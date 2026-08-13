@@ -1,0 +1,221 @@
+/* =========================================
+   DESKTOP
+   ========================================= */
+
+.student-container {
+  min-height: 100vh;
+  background: #f0f2f5;
+  font-family: Arial, sans-serif;
+}
+
+.student-nav {
+  background: #1a3c6e;
+  color: white;
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.student-body {
+  display: flex;
+  min-height: calc(100vh - 60px);
+}
+
+.student-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: white;
+  border-right: 1px solid #ddd;
+}
+
+.student-main {
+  flex: 1;
+  min-width: 0;
+  padding: 24px;
+  overflow-x: auto;
+}
+
+/* Grids */
+
+.student-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.student-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.student-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+/* Tables */
+
+.student-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.student-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+}
+
+/* =========================================
+   TABLET
+   ========================================= */
+
+@media (max-width: 900px) {
+
+  .student-grid-4 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .student-grid-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .student-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .student-main {
+    padding: 18px;
+  }
+}
+
+/* =========================================
+   MOBILE
+   ========================================= */
+
+@media (max-width: 600px) {
+
+  .student-nav {
+    padding: 10px 12px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .student-nav-left {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .student-logo {
+    font-size: 26px !important;
+  }
+
+  .student-uni-name {
+    font-size: 14px !important;
+  }
+
+  .student-uni-sub {
+    font-size: 11px !important;
+  }
+
+  .student-nav-right {
+    gap: 8px !important;
+  }
+
+  .student-welcome {
+    display: none;
+  }
+
+  .student-logout {
+    padding: 7px 10px !important;
+    font-size: 12px !important;
+  }
+
+  /* Sidebar becomes a top menu */
+
+  .student-body {
+    flex-direction: column;
+  }
+
+  .student-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .student-sidebar-title {
+    padding: 10px 14px !important;
+    font-size: 12px !important;
+  }
+
+  .student-menu-item {
+    font-size: 12px !important;
+    padding: 9px 10px !important;
+  }
+
+  .student-sub-menu {
+    font-size: 11px !important;
+  }
+
+  .student-main {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 14px;
+    overflow-x: hidden;
+  }
+
+  /* Mobile grids */
+
+  .student-grid-4,
+  .student-grid-3,
+  .student-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* Cards */
+
+  .student-info-card {
+    padding: 16px !important;
+  }
+
+  .student-stat-box {
+    padding: 16px !important;
+  }
+
+  /* Titles */
+
+  .student-page-title {
+    font-size: 22px !important;
+  }
+
+  /* Tables become horizontally scrollable */
+
+  .student-table-wrapper {
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .student-table {
+    min-width: 650px;
+  }
+
+  /* AI report */
+
+  .student-ai-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Forms */
+
+  .student-input {
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+}
