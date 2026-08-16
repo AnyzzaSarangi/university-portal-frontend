@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './StudentDashboard.css';
-
 import {
-  getStudents,
+  getCurrentStudent,
   getStudentEducation,
   getStudentParents,
   getStudentSocieties,
@@ -18,6 +17,11 @@ import {
   getStudentMentor,
   getStudentMentorMeetings,
 } from '../services/api';
+
+
+/* =====================================================
+   SIDEBAR MENU
+   ===================================================== */
 
 const menuItems = [
   {
@@ -70,12 +74,29 @@ const menuItems = [
   },
 ];
 
+
+/* =====================================================
+   MAIN DASHBOARD
+   ===================================================== */
+
 export default function StudentDashboard() {
+
   const { user, logoutUser } = useAuth();
+  const navigate = useNavigate();
+
+  /* ---------------------------------------------------
+     STUDENT STATE
+     --------------------------------------------------- */
 
   const [student, setStudent] = useState(null);
+
   const [active, setActive] = useState('overview');
+
   const [open, setOpen] = useState({});
+
+  /* ---------------------------------------------------
+     SUB RESOURCE STATES
+     --------------------------------------------------- */
 
   const [education, setEducation] = useState([]);
   const [parents, setParents] = useState(null);
@@ -91,16 +112,137 @@ export default function StudentDashboard() {
 
   const [loading, setLoading] = useState(true);
 
-  const navigate = useNavigate();
+
+  /* ===================================================
+     LOAD CURRENT LOGGED-IN STUDENT
+     =================================================== */
 
   useEffect(() => {
-    const fetchAll = async () => {
+
+    let cancelled = false;
+
+    const fetchStudentDashboard = async () => {
+
       try {
-        const res = await getStudents();
 
-        const s = res.data[0];
+        setLoading(true);
 
-        setStudent(s);
+        /*
+         * Clear old student data first.
+         *
+         * This is important when switching between
+         * Eesha and Bumbhole accounts.
+         */
+
+        setStudent(null);
+        setEducation([]);
+        setParents(null);
+        setSocieties([]);
+        setMarks([]);
+        setAttendance([]);
+        setFees([]);
+        setPlacement([]);
+        setGrievances([]);
+        setNotifications([]);
+        setMentor(null);
+        setMeetings([]);
+
+
+        /* ---------------------------------------------
+           DEBUG: CURRENT AUTHENTICATED USER
+           --------------------------------------------- */
+
+        console.log(
+          'CURRENT AUTH USER:',
+          user
+        );
+
+
+        /* ---------------------------------------------
+           GET CURRENT STUDENT
+           --------------------------------------------- */
+
+        const response =
+          await getCurrentStudent();
+
+
+        console.log(
+          'CURRENT STUDENT RESPONSE:',
+          response.data
+        );
+
+
+        if (cancelled) {
+          return;
+        }
+
+
+        /*
+         * The backend should return the student belonging
+         * to the email contained inside the JWT.
+         */
+
+        const currentStudent =
+          response.data;
+
+
+        if (!currentStudent) {
+          throw new Error(
+            'No student profile returned by server.'
+          );
+        }
+
+
+        /*
+         * Make absolutely sure that the response
+         * contains the expected student identity.
+         */
+
+        console.log(
+          'LOGGED-IN EMAIL:',
+          user?.email
+        );
+
+        console.log(
+          'STUDENT NAME FROM DATABASE:',
+          currentStudent?.name
+        );
+
+        console.log(
+          'STUDENT USER ID:',
+          currentStudent?.userId
+        );
+
+        console.log(
+          'STUDENT ROLL NUMBER:',
+          currentStudent?.rollNo
+        );
+
+
+        setStudent(currentStudent);
+
+
+        /* ---------------------------------------------
+           LOAD ALL STUDENT DATA
+           --------------------------------------------- */
+
+        const studentId =
+          currentStudent.id;
+
+        const userId =
+          currentStudent.userId;
+
+
+        console.log(
+          'USING STUDENT ID:',
+          studentId
+        );
+
+        console.log(
+          'USING USER ID:',
+          userId
+        );
+
 
         const [
           edu,
@@ -115,55 +257,178 @@ export default function StudentDashboard() {
           men,
           met,
         ] = await Promise.all([
-          getStudentEducation(s.id),
-          getStudentParents(s.id),
-          getStudentSocieties(s.id),
-          getStudentMarks(s.id),
-          getStudentAttendance(s.id),
-          getStudentFees(s.id),
-          getStudentPlacement(s.id),
-          getStudentGrievances(s.userId),
-          getStudentNotifications(s.userId),
-          getStudentMentor(s.id),
-          getStudentMentorMeetings(s.id),
+
+          getStudentEducation(studentId),
+
+          getStudentParents(studentId),
+
+          getStudentSocieties(studentId),
+
+          getStudentMarks(studentId),
+
+          getStudentAttendance(studentId),
+
+          getStudentFees(studentId),
+
+          getStudentPlacement(studentId),
+
+          getStudentGrievances(userId),
+
+          getStudentNotifications(userId),
+
+          getStudentMentor(studentId),
+
+          getStudentMentorMeetings(studentId),
+
         ]);
 
-        setEducation(edu.data);
-        setParents(par.data);
-        setSocieties(soc.data);
-        setMarks(mrk.data);
-        setAttendance(att.data);
-        setFees(fee.data);
-        setPlacement(plc.data);
-        setGrievances(grv.data);
-        setNotifications(ntf.data);
-        setMentor(men.data);
-        setMeetings(met.data);
+
+        if (cancelled) {
+          return;
+        }
+
+
+        /* ---------------------------------------------
+           SAVE ALL DATA
+           --------------------------------------------- */
+
+        setEducation(edu.data || []);
+
+        setParents(par.data || null);
+
+        setSocieties(soc.data || []);
+
+        setMarks(mrk.data || []);
+
+        setAttendance(att.data || []);
+
+        setFees(fee.data || []);
+
+        setPlacement(plc.data || []);
+
+        setGrievances(grv.data || []);
+
+        setNotifications(ntf.data || []);
+
+        setMentor(men.data || null);
+
+        setMeetings(met.data || []);
+
 
       } catch (err) {
-        console.error(err);
+
+        console.error(
+          'FAILED TO LOAD STUDENT DASHBOARD:',
+          err
+        );
+
+
+        console.error(
+          'SERVER RESPONSE:',
+          err.response?.data
+        );
+
+
+        /*
+         * Unauthorized means the JWT is invalid/expired.
+         */
+
+        if (err.response?.status === 401) {
+
+          logoutUser();
+
+          navigate('/');
+
+          return;
+        }
+
+
+        /*
+         * If /students/me does not exist.
+         */
+
+        if (err.response?.status === 404) {
+
+          console.error(
+            'The /students/me endpoint was not found.'
+          );
+
+        }
+
+
       } finally {
-        setLoading(false);
+
+        if (!cancelled) {
+          setLoading(false);
+        }
+
       }
+
     };
 
-    fetchAll();
-  }, []);
+
+    /*
+     * Only load when an authenticated user exists.
+     */
+
+    if (user) {
+
+      fetchStudentDashboard();
+
+    } else {
+
+      setLoading(false);
+
+    }
+
+
+    return () => {
+
+      cancelled = true;
+
+    };
+
+  }, [user, logoutUser, navigate]);
+
+
+  /* ===================================================
+     LOGOUT
+     =================================================== */
 
   const handleLogout = () => {
+
     logoutUser();
+
     navigate('/');
+
   };
+
+
+  /* ===================================================
+     SIDEBAR TOGGLE
+     =================================================== */
 
   const toggleMenu = (key) => {
+
     setOpen((previous) => ({
+
       ...previous,
+
       [key]: !previous[key],
+
     }));
+
   };
 
+
+  /* ===================================================
+     LOADING SCREEN
+     =================================================== */
+
   if (loading) {
+
     return (
+
       <div
         style={{
           display: 'flex',
@@ -173,7 +438,13 @@ export default function StudentDashboard() {
           background: '#f0f2f5',
         }}
       >
-        <div style={{ textAlign: 'center' }}>
+
+        <div
+          style={{
+            textAlign: 'center',
+          }}
+        >
+
           <div
             style={{
               fontSize: '48px',
@@ -191,15 +462,109 @@ export default function StudentDashboard() {
           >
             Loading your portal...
           </p>
+
         </div>
+
       </div>
+
     );
+
   }
 
+
+  /* ===================================================
+     NO STUDENT FOUND
+     =================================================== */
+
+  if (!student) {
+
+    return (
+
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          background: '#f0f2f5',
+          padding: '20px',
+        }}
+      >
+
+        <div
+          style={{
+            background: 'white',
+            padding: '30px',
+            borderRadius: '12px',
+            textAlign: 'center',
+            maxWidth: '500px',
+            boxShadow:
+              '0 4px 15px rgba(0,0,0,0.1)',
+          }}
+        >
+
+          <div
+            style={{
+              fontSize: '40px',
+              marginBottom: '10px',
+            }}
+          >
+            ⚠️
+          </div>
+
+          <h2
+            style={{
+              color: '#1a3c6e',
+            }}
+          >
+            Student Profile Not Found
+          </h2>
+
+          <p
+            style={{
+              color: '#666',
+            }}
+          >
+            We could not find a student profile
+            associated with the currently logged-in
+            account.
+          </p>
+
+          <button
+            onClick={handleLogout}
+            style={{
+              marginTop: '15px',
+              padding: '10px 20px',
+              background: '#1a3c6e',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+            }}
+          >
+            Return to Login
+          </button>
+
+        </div>
+
+      </div>
+
+    );
+
+  }
+
+
+  /* ===================================================
+     MAIN UI
+     =================================================== */
+
   return (
+
     <div className="student-container">
 
-      {/* ================= NAVBAR ================= */}
+      {/* =================================================
+          NAVBAR
+          ================================================= */}
 
       <nav className="student-nav">
 
@@ -207,6 +572,7 @@ export default function StudentDashboard() {
           className="student-nav-left"
           style={styles.navLeft}
         >
+
           <span
             className="student-logo"
             style={styles.logo}
@@ -215,6 +581,7 @@ export default function StudentDashboard() {
           </span>
 
           <div>
+
             <div
               className="student-uni-name"
               style={styles.uniName}
@@ -226,15 +593,20 @@ export default function StudentDashboard() {
               className="student-uni-sub"
               style={styles.uniSub}
             >
-              {student?.branch} — {student?.admissionYear} Batch
+              {student?.branch} —{' '}
+              {student?.admissionYear} Batch
             </div>
+
           </div>
+
         </div>
+
 
         <div
           className="student-nav-right"
           style={styles.navRight}
         >
+
           <span
             className="student-welcome"
             style={styles.welcome}
@@ -249,16 +621,22 @@ export default function StudentDashboard() {
           >
             Log off
           </button>
+
         </div>
 
       </nav>
 
 
-      {/* ================= BODY ================= */}
+      {/* =================================================
+          BODY
+          ================================================= */}
 
       <div className="student-body">
 
-        {/* ================= SIDEBAR ================= */}
+
+        {/* =================================================
+            SIDEBAR
+            ================================================= */}
 
         <aside className="student-sidebar">
 
@@ -269,37 +647,50 @@ export default function StudentDashboard() {
             Student Self Service
           </div>
 
+
           {menuItems.map((item) => (
+
             <div key={item.key}>
 
               <div
                 className="student-menu-item"
                 style={{
                   ...styles.menuItem,
+
                   background:
                     active === item.key
                       ? '#d0e4f7'
                       : 'transparent',
+
                   fontWeight:
                     active === item.key
                       ? '600'
                       : '400',
                 }}
+
                 onClick={() => {
 
                   if (item.children) {
+
                     toggleMenu(item.key);
+
                   } else {
+
                     setActive(item.key);
+
                   }
 
                 }}
               >
 
                 {item.children && (
+
                   <span style={styles.arrow}>
-                    {open[item.key] ? '▼' : '▶'}
+                    {open[item.key]
+                      ? '▼'
+                      : '▶'}
                   </span>
+
                 )}
 
                 {item.label}
@@ -316,12 +707,16 @@ export default function StudentDashboard() {
                     className="student-sub-menu"
                     style={{
                       ...styles.subMenuItem,
+
                       background:
                         active === child
                           ? '#d0e4f7'
                           : 'transparent',
                     }}
-                    onClick={() => setActive(child)}
+
+                    onClick={() =>
+                      setActive(child)
+                    }
                   >
                     • {child}
                   </div>
@@ -329,99 +724,161 @@ export default function StudentDashboard() {
                 ))}
 
             </div>
+
           ))}
 
         </aside>
 
 
-        {/* ================= MAIN CONTENT ================= */}
+        {/* =================================================
+            MAIN
+            ================================================= */}
 
         <main className="student-main">
 
+
           {active === 'overview' && (
+
             <Overview
               student={student}
               marks={marks}
               attendance={attendance}
               notifications={notifications}
             />
+
           )}
+
 
           {active === 'Personal Info' && (
-            <PersonalInfo student={student} />
+
+            <PersonalInfo
+              student={student}
+            />
+
           )}
+
 
           {active === 'Address Details' && (
-            <AddressDetails student={student} />
+
+            <AddressDetails
+              student={student}
+            />
+
           )}
+
 
           {active === 'Previous Education' && (
-            <PreviousEducation education={education} />
+
+            <PreviousEducation
+              education={education}
+            />
+
           )}
+
 
           {active === 'Parent Details' && (
-            <ParentDetailsSection parents={parents} />
+
+            <ParentDetailsSection
+              parents={parents}
+            />
+
           )}
+
 
           {active === 'Societies' && (
-            <SocietiesSection societies={societies} />
+
+            <SocietiesSection
+              societies={societies}
+            />
+
           )}
 
+
           {active === 'Semester Marks' && (
+
             <SemesterMarksSection
               marks={marks}
               student={student}
             />
+
           )}
 
+
           {active === 'Attendance' && (
+
             <AttendanceSection
               attendance={attendance}
             />
+
           )}
+
 
           {active === 'Exam Schedule' && (
-            <ExamSchedule student={student} />
+
+            <ExamSchedule
+              student={student}
+            />
+
           )}
+
 
           {active === 'fees' && (
-            <FeesSection fees={fees} />
+
+            <FeesSection
+              fees={fees}
+            />
+
           )}
 
+
           {active === 'placement' && (
+
             <PlacementSection
               placement={placement}
               student={student}
             />
+
           )}
 
+
           {active === 'mentor' && (
+
             <MentorSection
               mentor={mentor}
               meetings={meetings}
             />
+
           )}
 
+
           {active === 'grievance' && (
+
             <GrievanceSection
               grievances={grievances}
               student={student}
               setGrievances={setGrievances}
             />
+
           )}
 
+
           {active === 'notifications' && (
+
             <NotificationsSection
               notifications={notifications}
             />
+
           )}
 
+
           {active === 'ai' && (
+
             <AIReport
               student={student}
               marks={marks}
               attendance={attendance}
             />
+
           )}
 
         </main>
@@ -429,6 +886,7 @@ export default function StudentDashboard() {
       </div>
 
     </div>
+
   );
 }
 
@@ -444,38 +902,52 @@ function Overview({
   notifications,
 }) {
 
-  const unread = notifications.filter(
-    (n) => !n.isRead
-  ).length;
+  const unread =
+    notifications.filter(
+      (n) => !n.isRead
+    ).length;
+
 
   const avgTotal =
     marks.length > 0
       ? (
           marks.reduce(
-            (a, m) => a + (m.total || 0),
+            (a, m) =>
+              a + (Number(m.total) || 0),
             0
           ) / marks.length
         ).toFixed(1)
       : 0;
 
-  const presentCount = attendance.filter(
-    (a) => a.status === 'PRESENT'
-  ).length;
+
+  const presentCount =
+    attendance.filter(
+      (a) =>
+        a.status === 'PRESENT'
+    ).length;
+
 
   const attendancePct =
     attendance.length > 0
       ? (
-          (presentCount / attendance.length) *
+          (presentCount /
+            attendance.length) *
           100
         ).toFixed(1)
       : 0;
 
+
   return (
+
     <div>
 
-      <h2 className="student-page-title" style={styles.pageTitle}>
+      <h2
+        className="student-page-title"
+        style={styles.pageTitle}
+      >
         Overview
       </h2>
+
 
       <div
         style={{
@@ -487,21 +959,32 @@ function Overview({
           marginBottom: '24px',
         }}
       >
-        <h2 style={{ margin: '0 0 8px' }}>
-          👋 Welcome back, {student?.name}!
+
+        <h2
+          style={{
+            margin: '0 0 8px',
+          }}
+        >
+          👋 Welcome back,{' '}
+          {student?.name}!
         </h2>
 
-        <p style={{ margin: 0, opacity: 0.85 }}>
+        <p
+          style={{
+            margin: 0,
+            opacity: 0.85,
+          }}
+        >
           {student?.branch} · Semester{' '}
           {student?.currentSemester} · Roll No:{' '}
           {student?.rollNo}
         </p>
+
       </div>
 
 
-      {/* RESPONSIVE GRID */}
-
       <div className="student-grid-4">
+
 
         <div
           className="student-stat-box"
@@ -510,9 +993,17 @@ function Overview({
             background: '#1a3c6e',
           }}
         >
-          <h2>{student?.cgpa}</h2>
-          <p>Current CGPA</p>
+
+          <h2>
+            {student?.cgpa ?? 0}
+          </h2>
+
+          <p>
+            Current CGPA
+          </p>
+
         </div>
+
 
         <div
           className="student-stat-box"
@@ -521,9 +1012,17 @@ function Overview({
             background: '#0f6e3c',
           }}
         >
-          <h2>{avgTotal}%</h2>
-          <p>Avg Marks</p>
+
+          <h2>
+            {avgTotal}%
+          </h2>
+
+          <p>
+            Avg Marks
+          </p>
+
         </div>
+
 
         <div
           className="student-stat-box"
@@ -535,9 +1034,17 @@ function Overview({
                 : '#6e4f0f',
           }}
         >
-          <h2>{attendancePct}%</h2>
-          <p>Attendance</p>
+
+          <h2>
+            {attendancePct}%
+          </h2>
+
+          <p>
+            Attendance
+          </p>
+
         </div>
+
 
         <div
           className="student-stat-box"
@@ -546,32 +1053,50 @@ function Overview({
             background: '#4a1a6e',
           }}
         >
-          <h2>{unread}</h2>
-          <p>Unread Alerts</p>
+
+          <h2>
+            {unread}
+          </h2>
+
+          <p>
+            Unread Alerts
+          </p>
+
         </div>
 
       </div>
 
 
       {attendancePct < 75 && (
+
         <div
           style={{
             background: '#fff3cd',
-            border: '1px solid #ffc107',
+            border:
+              '1px solid #ffc107',
             padding: '14px',
             borderRadius: '8px',
             marginTop: '16px',
             color: '#856404',
           }}
         >
-          ⚠️ <b>Attendance Warning:</b>{' '}
-          Your overall attendance is {attendancePct}%
-          which is below 75%. You may be barred from
-          exams.
+
+          ⚠️{' '}
+
+          <b>
+            Attendance Warning:
+          </b>{' '}
+
+          Your overall attendance is{' '}
+          {attendancePct}% which is below
+          75%. You may be barred from exams.
+
         </div>
+
       )}
 
     </div>
+
   );
 }
 
@@ -582,7 +1107,42 @@ function Overview({
 
 function PersonalInfo({ student }) {
 
+  const rows = [
+
+    ['Full Name', student?.name],
+
+    ['Roll No', student?.rollNo],
+
+    ['Branch', student?.branch],
+
+    ['Gender', student?.gender],
+
+    ['Date of Birth', student?.dob],
+
+    ['Blood Group', student?.bloodGroup],
+
+    ['Age', student?.age],
+
+    ['Phone', student?.phone],
+
+    ['Semester', student?.currentSemester],
+
+    ['CGPA', student?.cgpa],
+
+    ['Admission Year', student?.admissionYear],
+
+    [
+      'Status',
+      student?.isSuspended
+        ? '🚫 Suspended'
+        : '✅ Active',
+    ],
+
+  ];
+
+
   return (
+
     <div>
 
       <h2
@@ -592,49 +1152,43 @@ function PersonalInfo({ student }) {
         Personal Information
       </h2>
 
+
       <div
         className="student-info-card"
         style={styles.infoCard}
       >
 
-        <table style={styles.infoTable}>
+        <table
+          style={styles.infoTable}
+        >
 
           <tbody>
 
-            {[
-              ['Full Name', student?.name],
-              ['Roll No', student?.rollNo],
-              ['Branch', student?.branch],
-              ['Gender', student?.gender],
-              ['Date of Birth', student?.dob],
-              ['Blood Group', student?.bloodGroup],
-              ['Age', student?.age],
-              ['Phone', student?.phone],
-              ['Semester', student?.currentSemester],
-              ['CGPA', student?.cgpa],
-              ['Admission Year', student?.admissionYear],
-              [
-                'Status',
-                student?.isSuspended
-                  ? '🚫 Suspended'
-                  : '✅ Active',
-              ],
-            ].map(([label, value]) => (
+            {rows.map(
+              ([label, value]) => (
 
-              <tr
-                key={label}
-                style={styles.infoRow}
-              >
-                <td style={styles.infoLabel}>
-                  {label}
-                </td>
+                <tr
+                  key={label}
+                  style={styles.infoRow}
+                >
 
-                <td style={styles.infoValue}>
-                  {value || '—'}
-                </td>
-              </tr>
+                  <td
+                    style={styles.infoLabel}
+                  >
+                    {label}
+                  </td>
 
-            ))}
+                  <td
+                    style={styles.infoValue}
+                  >
+                    {value ??
+                      '—'}
+                  </td>
+
+                </tr>
+
+              )
+            )}
 
           </tbody>
 
@@ -643,6 +1197,7 @@ function PersonalInfo({ student }) {
       </div>
 
     </div>
+
   );
 }
 
@@ -651,9 +1206,12 @@ function PersonalInfo({ student }) {
    ADDRESS
    ===================================================== */
 
-function AddressDetails({ student }) {
+function AddressDetails({
+  student,
+}) {
 
   return (
+
     <div>
 
       <h2
@@ -663,17 +1221,28 @@ function AddressDetails({ student }) {
         Address Details
       </h2>
 
+
       <div className="student-grid-2">
+
 
         <div
           className="student-info-card"
           style={styles.infoCard}
         >
-          <h3>📍 Current Address</h3>
 
-          <p style={{ lineHeight: '1.6' }}>
-            {student?.addressCurrent || '—'}
+          <h3>
+            📍 Current Address
+          </h3>
+
+          <p
+            style={{
+              lineHeight: '1.6',
+            }}
+          >
+            {student?.addressCurrent ||
+              '—'}
           </p>
+
         </div>
 
 
@@ -681,16 +1250,26 @@ function AddressDetails({ student }) {
           className="student-info-card"
           style={styles.infoCard}
         >
-          <h3>🏠 Permanent Address</h3>
 
-          <p style={{ lineHeight: '1.6' }}>
-            {student?.addressPermanent || '—'}
+          <h3>
+            🏠 Permanent Address
+          </h3>
+
+          <p
+            style={{
+              lineHeight: '1.6',
+            }}
+          >
+            {student?.addressPermanent ||
+              '—'}
           </p>
+
         </div>
 
       </div>
 
     </div>
+
   );
 }
 
@@ -699,9 +1278,12 @@ function AddressDetails({ student }) {
    PREVIOUS EDUCATION
    ===================================================== */
 
-function PreviousEducation({ education }) {
+function PreviousEducation({
+  education,
+}) {
 
   return (
+
     <div>
 
       <h2
@@ -711,95 +1293,231 @@ function PreviousEducation({ education }) {
         Previous Education
       </h2>
 
-      <div className="student-grid-2">
 
-        {education.map((e, i) => (
+      {education.length === 0 ? (
 
-          <div
-            key={i}
-            className="student-info-card"
-            style={{
-              ...styles.infoCard,
-              borderTop:
-                `4px solid ${
-                  e.level === 'CLASS_X'
-                    ? '#1a3c6e'
-                    : '#e94560'
-                }`,
-            }}
-          >
+        <div
+          className="student-info-card"
+          style={styles.infoCard}
+        >
 
-            <h3>
-              {e.level === 'CLASS_X'
-                ? '🏫 Class X (Mid School)'
-                : '🎓 Class XII (High School)'}
-            </h3>
+          <p>
+            No previous education
+            records found.
+          </p>
 
-            <table style={styles.infoTable}>
+        </div>
 
-              <tbody>
+      ) : (
 
-                {[
-                  ['School Name', e.schoolName],
-                  ['Board', e.board],
-                  ['Stream', e.stream || 'N/A'],
-                  ['Pass Year', e.passYear],
-                  [
-                    'Percentage',
-                    e.percentage
-                      ? `${e.percentage}%`
-                      : '—',
-                  ],
-                ].map(([label, value]) => (
+        <div className="student-grid-2">
 
-                  <tr
-                    key={label}
-                    style={styles.infoRow}
-                  >
-                    <td style={styles.infoLabel}>
-                      {label}
-                    </td>
+          {education.map(
+            (e, i) => (
 
-                    <td style={styles.infoValue}>
-                      {value || '—'}
-                    </td>
-                  </tr>
+              <div
+                key={i}
+                className="student-info-card"
+                style={{
+                  ...styles.infoCard,
+                  borderTop:
+                    `4px solid ${
+                      e.level ===
+                      'CLASS_X'
+                        ? '#1a3c6e'
+                        : '#e94560'
+                    }`,
+                }}
+              >
 
-                ))}
+                <h3>
 
-              </tbody>
+                  {e.level ===
+                  'CLASS_X'
+                    ? '🏫 Class X (Mid School)'
+                    : '🎓 Class XII (High School)'}
 
-            </table>
+                </h3>
 
-          </div>
 
-        ))}
+                <table
+                  style={styles.infoTable}
+                >
 
-      </div>
+                  <tbody>
+
+                    {[
+                      [
+                        'School Name',
+                        e.schoolName,
+                      ],
+                      [
+                        'Board',
+                        e.board,
+                      ],
+                      [
+                        'Stream',
+                        e.stream ||
+                          'N/A',
+                      ],
+                      [
+                        'Pass Year',
+                        e.passYear,
+                      ],
+                      [
+                        'Percentage',
+                        e.percentage != null
+                          ? `${e.percentage}%`
+                          : '—',
+                      ],
+                    ].map(
+                      ([label, value]) => (
+
+                        <tr
+                          key={label}
+                          style={
+                            styles.infoRow
+                          }
+                        >
+
+                          <td
+                            style={
+                              styles.infoLabel
+                            }
+                          >
+                            {label}
+                          </td>
+
+                          <td
+                            style={
+                              styles.infoValue
+                            }
+                          >
+                            {value ??
+                              '—'}
+                          </td>
+
+                        </tr>
+
+                      )
+                    )}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            )
+          )}
+
+        </div>
+
+      )}
 
     </div>
+
   );
 }
 
 
 /* =====================================================
-   PARENT DETAILS
+   PARENTS
    ===================================================== */
 
-function ParentDetailsSection({ parents }) {
+function ParentDetailsSection({
+  parents,
+}) {
 
   if (!parents) {
+
     return (
+
       <div
         className="student-info-card"
         style={styles.infoCard}
       >
-        <p>No parent details found.</p>
+
+        <p>
+          No parent details found.
+        </p>
+
       </div>
+
     );
+
   }
 
+
+  const renderParent = (
+    title,
+    color,
+    rows
+  ) => (
+
+    <div
+      className="student-info-card"
+      style={{
+        ...styles.infoCard,
+        borderTop:
+          `4px solid ${color}`,
+      }}
+    >
+
+      <h3>
+        {title}
+      </h3>
+
+
+      <table
+        style={styles.infoTable}
+      >
+
+        <tbody>
+
+          {rows.map(
+            ([label, value]) => (
+
+              <tr
+                key={label}
+                style={
+                  styles.infoRow
+                }
+              >
+
+                <td
+                  style={
+                    styles.infoLabel
+                  }
+                >
+                  {label}
+                </td>
+
+                <td
+                  style={
+                    styles.infoValue
+                  }
+                >
+                  {value ??
+                    '—'}
+                </td>
+
+              </tr>
+
+            )
+          )}
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  );
+
+
   return (
+
     <div>
 
       <h2
@@ -809,139 +1527,70 @@ function ParentDetailsSection({ parents }) {
         Parent Details
       </h2>
 
+
       <div className="student-grid-2">
 
-        <div
-          className="student-info-card"
-          style={{
-            ...styles.infoCard,
-            borderTop: '4px solid #1a3c6e',
-          }}
-        >
-
-          <h3>👨 Father's Details</h3>
-
-          <table style={styles.infoTable}>
-
-            <tbody>
-
-              {[
-                ['Name', parents.fatherName],
-                ['Phone', parents.fatherPhone],
-                ['Email', parents.fatherEmail],
-              ].map(([label, value]) => (
-
-                <tr
-                  key={label}
-                  style={styles.infoRow}
-                >
-                  <td style={styles.infoLabel}>
-                    {label}
-                  </td>
-
-                  <td style={styles.infoValue}>
-                    {value || '—'}
-                  </td>
-                </tr>
-
-              ))}
-
-            </tbody>
-
-          </table>
-
-        </div>
-
-
-        <div
-          className="student-info-card"
-          style={{
-            ...styles.infoCard,
-            borderTop: '4px solid #e94560',
-          }}
-        >
-
-          <h3>👩 Mother's Details</h3>
-
-          <table style={styles.infoTable}>
-
-            <tbody>
-
-              {[
-                ['Name', parents.motherName],
-                ['Phone', parents.motherPhone],
-                ['Email', parents.motherEmail],
-              ].map(([label, value]) => (
-
-                <tr
-                  key={label}
-                  style={styles.infoRow}
-                >
-                  <td style={styles.infoLabel}>
-                    {label}
-                  </td>
-
-                  <td style={styles.infoValue}>
-                    {value || '—'}
-                  </td>
-                </tr>
-
-              ))}
-
-            </tbody>
-
-          </table>
-
-        </div>
-
-
-        {parents.guardianName && (
-
-          <div
-            className="student-info-card"
-            style={{
-              ...styles.infoCard,
-              borderTop: '4px solid #f59e0b',
-            }}
-          >
-
-            <h3>🧑 Guardian's Details</h3>
-
-            <table style={styles.infoTable}>
-
-              <tbody>
-
-                {[
-                  ['Name', parents.guardianName],
-                  ['Phone', parents.guardianPhone],
-                ].map(([label, value]) => (
-
-                  <tr
-                    key={label}
-                    style={styles.infoRow}
-                  >
-                    <td style={styles.infoLabel}>
-                      {label}
-                    </td>
-
-                    <td style={styles.infoValue}>
-                      {value || '—'}
-                    </td>
-                  </tr>
-
-                ))}
-
-              </tbody>
-
-            </table>
-
-          </div>
-
+        {renderParent(
+          "👨 Father's Details",
+          '#1a3c6e',
+          [
+            [
+              'Name',
+              parents.fatherName,
+            ],
+            [
+              'Phone',
+              parents.fatherPhone,
+            ],
+            [
+              'Email',
+              parents.fatherEmail,
+            ],
+          ]
         )}
+
+
+        {renderParent(
+          "👩 Mother's Details",
+          '#e94560',
+          [
+            [
+              'Name',
+              parents.motherName,
+            ],
+            [
+              'Phone',
+              parents.motherPhone,
+            ],
+            [
+              'Email',
+              parents.motherEmail,
+            ],
+          ]
+        )}
+
+
+        {parents.guardianName &&
+
+          renderParent(
+            "🧑 Guardian's Details",
+            '#f59e0b',
+            [
+              [
+                'Name',
+                parents.guardianName,
+              ],
+              [
+                'Phone',
+                parents.guardianPhone,
+              ],
+            ]
+          )}
 
       </div>
 
     </div>
+
   );
 }
 
@@ -950,30 +1599,47 @@ function ParentDetailsSection({ parents }) {
    SOCIETIES
    ===================================================== */
 
-function SocietiesSection({ societies }) {
+function SocietiesSection({
+  societies,
+}) {
 
   const icons = {
+
     Reading: '📚',
+
     Writing: '✍️',
+
     Singing: '🎵',
+
     Dancing: '💃',
+
     Cricket: '🏏',
+
     Football: '⚽',
+
     Food: '🍕',
+
     AI: '🤖',
+
     Robotics: '🦾',
+
     Other: '🌟',
+
   };
 
+
   return (
+
     <div>
 
       <h2
         className="student-page-title"
         style={styles.pageTitle}
       >
-        Societies & Extracurriculars
+        Societies &
+        Extracurriculars
       </h2>
+
 
       {societies.length === 0 ? (
 
@@ -981,77 +1647,98 @@ function SocietiesSection({ societies }) {
           className="student-info-card"
           style={styles.infoCard}
         >
-          <p>No societies joined yet.</p>
+
+          <p>
+            No societies joined yet.
+          </p>
+
         </div>
 
       ) : (
 
         <div className="student-grid-3">
 
-          {societies.map((s, i) => (
-
-            <div
-              key={i}
-              className="student-info-card"
-              style={{
-                background: 'white',
-                borderRadius: '12px',
-                padding: '20px',
-                boxShadow:
-                  '0 2px 8px rgba(0,0,0,0.08)',
-                textAlign: 'center',
-                borderTop:
-                  '4px solid #1a3c6e',
-              }}
-            >
+          {societies.map(
+            (s, i) => (
 
               <div
+                key={i}
+                className="student-info-card"
                 style={{
-                  fontSize: '36px',
-                  marginBottom: '8px',
+                  background: 'white',
+                  borderRadius:
+                    '12px',
+                  padding:
+                    '20px',
+                  boxShadow:
+                    '0 2px 8px rgba(0,0,0,0.08)',
+                  textAlign:
+                    'center',
+                  borderTop:
+                    '4px solid #1a3c6e',
                 }}
               >
-                {icons[s.name] || '🌟'}
+
+                <div
+                  style={{
+                    fontSize:
+                      '36px',
+                    marginBottom:
+                      '8px',
+                  }}
+                >
+                  {icons[s.name] ||
+                    '🌟'}
+                </div>
+
+                <h3
+                  style={{
+                    color:
+                      '#1a3c6e',
+                    margin:
+                      '0 0 8px',
+                  }}
+                >
+                  {s.name}
+                </h3>
+
+                <p
+                  style={{
+                    color:
+                      '#666',
+                    margin:
+                      '0 0 4px',
+                    fontSize:
+                      '13px',
+                  }}
+                >
+                  {s.role}
+                </p>
+
+                <p
+                  style={{
+                    color:
+                      '#999',
+                    margin: 0,
+                    fontSize:
+                      '12px',
+                  }}
+                >
+                  Joined{' '}
+                  {s.joinedYear}
+                </p>
+
               </div>
 
-              <h3
-                style={{
-                  color: '#1a3c6e',
-                  margin: '0 0 8px',
-                }}
-              >
-                {s.name}
-              </h3>
-
-              <p
-                style={{
-                  color: '#666',
-                  margin: '0 0 4px',
-                  fontSize: '13px',
-                }}
-              >
-                {s.role}
-              </p>
-
-              <p
-                style={{
-                  color: '#999',
-                  margin: 0,
-                  fontSize: '12px',
-                }}
-              >
-                Joined {s.joinedYear}
-              </p>
-
-            </div>
-
-          ))}
+            )
+          )}
 
         </div>
 
       )}
 
     </div>
+
   );
 }
 
@@ -1065,36 +1752,65 @@ function SemesterMarksSection({
   student,
 }) {
 
-  const [selectedSem, setSelectedSem] =
-    useState(student?.currentSemester || 1);
+  const [
+    selectedSem,
+    setSelectedSem,
+  ] = useState(
+    student?.currentSemester || 1
+  );
+
 
   const semesters = [
     ...new Set(
-      marks.map((m) => m.semester)
+      marks
+        .map(
+          (m) => m.semester
+        )
+        .filter(
+          (s) => s != null
+        )
     ),
-  ].sort();
-
-  const filtered = marks.filter(
-    (m) => m.semester === selectedSem
+  ].sort(
+    (a, b) => a - b
   );
 
-  const getGradeColor = (grade) => {
 
-    if (!grade) return '#666';
+  const filtered =
+    marks.filter(
+      (m) =>
+        m.semester ===
+        selectedSem
+    );
 
-    if (grade.startsWith('A'))
-      return '#22c55e';
 
-    if (grade.startsWith('B'))
-      return '#f59e0b';
+  const getGradeColor =
+    (grade) => {
 
-    if (grade.startsWith('C'))
-      return '#f97316';
+      if (!grade)
+        return '#666';
 
-    return '#ef4444';
-  };
+      if (
+        grade.startsWith('A')
+      )
+        return '#22c55e';
+
+      if (
+        grade.startsWith('B')
+      )
+        return '#f59e0b';
+
+      if (
+        grade.startsWith('C')
+      )
+        return '#f97316';
+
+      return '#ef4444';
+
+    };
+
 
   return (
+
     <div>
 
       <h2
@@ -1109,39 +1825,54 @@ function SemesterMarksSection({
         style={{
           display: 'flex',
           gap: '8px',
-          marginBottom: '20px',
-          flexWrap: 'wrap',
+          marginBottom:
+            '20px',
+          flexWrap:
+            'wrap',
         }}
       >
 
-        {semesters.map((sem) => (
+        {semesters.map(
+          (sem) => (
 
-          <button
-            key={sem}
-            onClick={() => setSelectedSem(sem)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: 'none',
-              background:
-                selectedSem === sem
-                  ? '#1a3c6e'
-                  : '#e5e7eb',
-              color:
-                selectedSem === sem
-                  ? 'white'
-                  : '#333',
-              cursor: 'pointer',
-              fontWeight:
-                selectedSem === sem
-                  ? '600'
-                  : '400',
-            }}
-          >
-            Sem {sem}
-          </button>
+            <button
+              key={sem}
+              onClick={() =>
+                setSelectedSem(
+                  sem
+                )
+              }
+              style={{
+                padding:
+                  '8px 16px',
+                borderRadius:
+                  '8px',
+                border:
+                  'none',
+                background:
+                  selectedSem ===
+                  sem
+                    ? '#1a3c6e'
+                    : '#e5e7eb',
+                color:
+                  selectedSem ===
+                  sem
+                    ? 'white'
+                    : '#333',
+                cursor:
+                  'pointer',
+                fontWeight:
+                  selectedSem ===
+                  sem
+                    ? '600'
+                    : '400',
+              }}
+            >
+              Sem {sem}
+            </button>
 
-        ))}
+          )
+        )}
 
       </div>
 
@@ -1154,7 +1885,9 @@ function SemesterMarksSection({
         {filtered.length === 0 ? (
 
           <p>
-            No marks data for Semester {selectedSem}
+            No marks data for
+            Semester{' '}
+            {selectedSem}
           </p>
 
         ) : (
@@ -1167,8 +1900,10 @@ function SemesterMarksSection({
 
                 <tr
                   style={{
-                    background: '#1a3c6e',
-                    color: 'white',
+                    background:
+                      '#1a3c6e',
+                    color:
+                      'white',
                   }}
                 >
 
@@ -1182,20 +1917,25 @@ function SemesterMarksSection({
                     'End Exam',
                     'Total',
                     'Grade',
-                  ].map((h) => (
+                  ].map(
+                    (h) => (
 
-                    <th
-                      key={h}
-                      style={{
-                        padding: '10px',
-                        textAlign: 'left',
-                        fontSize: '13px',
-                      }}
-                    >
-                      {h}
-                    </th>
+                      <th
+                        key={h}
+                        style={{
+                          padding:
+                            '10px',
+                          textAlign:
+                            'left',
+                          fontSize:
+                            '13px',
+                        }}
+                      >
+                        {h}
+                      </th>
 
-                  ))}
+                    )
+                  )}
 
                 </tr>
 
@@ -1204,68 +1944,112 @@ function SemesterMarksSection({
 
               <tbody>
 
-                {filtered.map((m, i) => (
+                {filtered.map(
+                  (m, i) => (
 
-                  <tr
-                    key={m.id}
-                    style={{
-                      background:
-                        i % 2 === 0
-                          ? '#f8f9fa'
-                          : 'white',
-                    }}
-                  >
+                    <tr
+                      key={m.id}
+                      style={{
+                        background:
+                          i % 2 === 0
+                            ? '#f8f9fa'
+                            : 'white',
+                      }}
+                    >
 
-                    <td style={styles.td}>
-                      CS
-                      {String(m.courseId).padStart(
-                        3,
-                        '0'
-                      )}
-                    </td>
-
-                    <td style={styles.td}>
-                      {m.quiz1}/10
-                    </td>
-
-                    <td style={styles.td}>
-                      {m.quiz2}/10
-                    </td>
-
-                    <td style={styles.td}>
-                      {m.assignment1}/10
-                    </td>
-
-                    <td style={styles.td}>
-                      {m.assignment2}/10
-                    </td>
-
-                    <td style={styles.td}>
-                      {m.midExam}/50
-                    </td>
-
-                    <td style={styles.td}>
-                      {m.endExam}/100
-                    </td>
-
-                    <td style={styles.td}>
-                      <b>{m.total}/100</b>
-                    </td>
-
-                    <td style={styles.td}>
-                      <b
-                        style={{
-                          color:
-                            getGradeColor(m.grade),
-                        }}
+                      <td
+                        style={
+                          styles.td
+                        }
                       >
-                        {m.grade}
-                      </b>
-                    </td>
+                        CS
+                        {String(
+                          m.courseId
+                        ).padStart(
+                          3,
+                          '0'
+                        )}
+                      </td>
 
-                  </tr>
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
+                        {m.quiz1}/10
+                      </td>
 
-                ))}
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
+                        {m.quiz2}/10
+                      </td>
+
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
+                        {m.assignment1}/10
+                      </td>
+
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
+                        {m.assignment2}/10
+                      </td>
+
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
+                        {m.midExam}/50
+                      </td>
+
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
+                        {m.endExam}/100
+                      </td>
+
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
+                        <b>
+                          {m.total}/100
+                        </b>
+                      </td>
+
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
+                        <b
+                          style={{
+                            color:
+                              getGradeColor(
+                                m.grade
+                              ),
+                          }}
+                        >
+                          {m.grade}
+                        </b>
+                      </td>
+
+                    </tr>
+
+                  )
+                )}
 
               </tbody>
 
@@ -1275,22 +2059,31 @@ function SemesterMarksSection({
 
         )}
 
+
         <div
           style={{
-            marginTop: '16px',
-            padding: '12px',
-            background: '#e8f4fd',
-            borderRadius: '8px',
+            marginTop:
+              '16px',
+            padding:
+              '12px',
+            background:
+              '#e8f4fd',
+            borderRadius:
+              '8px',
           }}
         >
+
           <b>
-            Overall CGPA: {student?.cgpa}
+            Overall CGPA:{' '}
+            {student?.cgpa}
           </b>
+
         </div>
 
       </div>
 
     </div>
+
   );
 }
 
@@ -1299,44 +2092,77 @@ function SemesterMarksSection({
    ATTENDANCE
    ===================================================== */
 
-function AttendanceSection({ attendance }) {
+function AttendanceSection({
+  attendance,
+}) {
 
-  const [selectedSem, setSelectedSem] =
-    useState(1);
+  const [
+    selectedSem,
+    setSelectedSem,
+  ] = useState(1);
+
 
   const semesters = [
     ...new Set(
-      attendance.map((a) => a.semester)
+      attendance
+        .map(
+          (a) => a.semester
+        )
+        .filter(
+          (s) => s != null
+        )
     ),
-  ].sort();
-
-  const filtered = attendance.filter(
-    (a) => a.semester === selectedSem
+  ].sort(
+    (a, b) => a - b
   );
 
-  const byCourse = filtered.reduce(
-    (acc, a) => {
 
-      if (!acc[a.courseId]) {
-        acc[a.courseId] = {
-          present: 0,
-          total: 0,
-        };
-      }
+  const filtered =
+    attendance.filter(
+      (a) =>
+        a.semester ===
+        selectedSem
+    );
 
-      acc[a.courseId].total++;
 
-      if (a.status === 'PRESENT') {
-        acc[a.courseId].present++;
-      }
+  const byCourse =
+    filtered.reduce(
+      (acc, a) => {
 
-      return acc;
+        if (!acc[a.courseId]) {
 
-    },
-    {}
-  );
+          acc[a.courseId] = {
+            present: 0,
+            total: 0,
+          };
+
+        }
+
+
+        acc[a.courseId]
+          .total++;
+
+
+        if (
+          a.status ===
+          'PRESENT'
+        ) {
+
+          acc[a.courseId]
+            .present++;
+
+        }
+
+
+        return acc;
+
+      },
+      {}
+    );
+
 
   return (
+
     <div>
 
       <h2
@@ -1351,60 +2177,94 @@ function AttendanceSection({ attendance }) {
         style={{
           display: 'flex',
           gap: '8px',
-          marginBottom: '20px',
-          flexWrap: 'wrap',
+          marginBottom:
+            '20px',
+          flexWrap:
+            'wrap',
         }}
       >
 
-        {semesters.map((sem) => (
+        {semesters.map(
+          (sem) => (
 
-          <button
-            key={sem}
-            onClick={() => setSelectedSem(sem)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: 'none',
-              background:
-                selectedSem === sem
-                  ? '#1a3c6e'
-                  : '#e5e7eb',
-              color:
-                selectedSem === sem
-                  ? 'white'
-                  : '#333',
-              cursor: 'pointer',
-              fontWeight:
-                selectedSem === sem
-                  ? '600'
-                  : '400',
-            }}
-          >
-            Sem {sem}
-          </button>
+            <button
+              key={sem}
+              onClick={() =>
+                setSelectedSem(
+                  sem
+                )
+              }
+              style={{
+                padding:
+                  '8px 16px',
+                borderRadius:
+                  '8px',
+                border:
+                  'none',
+                background:
+                  selectedSem ===
+                  sem
+                    ? '#1a3c6e'
+                    : '#e5e7eb',
+                color:
+                  selectedSem ===
+                  sem
+                    ? 'white'
+                    : '#333',
+                cursor:
+                  'pointer',
+                fontWeight:
+                  selectedSem ===
+                  sem
+                    ? '600'
+                    : '400',
+              }}
+            >
+              Sem {sem}
+            </button>
 
-        ))}
+          )
+        )}
 
       </div>
 
 
-      {Object.values(byCourse).some(
+      {Object.values(
+        byCourse
+      ).some(
         (c) =>
-          (c.present / c.total) * 100 < 75
+          (c.present /
+            c.total) *
+            100 <
+          75
       ) && (
 
         <div
           style={{
-            background: '#fff3cd',
-            border: '1px solid #ffc107',
-            padding: '12px',
-            borderRadius: '8px',
-            marginBottom: '16px',
-            color: '#856404',
+            background:
+              '#fff3cd',
+            border:
+              '1px solid #ffc107',
+            padding:
+              '12px',
+            borderRadius:
+              '8px',
+            marginBottom:
+              '16px',
+            color:
+              '#856404',
           }}
         >
-          ⚠️ <b>Warning:</b> One or more subjects
-          have attendance below 75%
+          ⚠️{' '}
+
+          <b>
+            Warning:
+          </b>{' '}
+
+          One or more subjects
+          have attendance below
+          75%.
+
         </div>
 
       )}
@@ -1423,8 +2283,10 @@ function AttendanceSection({ attendance }) {
 
               <tr
                 style={{
-                  background: '#1a3c6e',
-                  color: 'white',
+                  background:
+                    '#1a3c6e',
+                  color:
+                    'white',
                 }}
               >
 
@@ -1434,19 +2296,23 @@ function AttendanceSection({ attendance }) {
                   'Total',
                   'Percentage',
                   'Status',
-                ].map((h) => (
+                ].map(
+                  (h) => (
 
-                  <th
-                    key={h}
-                    style={{
-                      padding: '10px',
-                      textAlign: 'left',
-                    }}
-                  >
-                    {h}
-                  </th>
+                    <th
+                      key={h}
+                      style={{
+                        padding:
+                          '10px',
+                        textAlign:
+                          'left',
+                      }}
+                    >
+                      {h}
+                    </th>
 
-                ))}
+                  )
+                )}
 
               </tr>
 
@@ -1455,18 +2321,30 @@ function AttendanceSection({ attendance }) {
 
             <tbody>
 
-              {Object.entries(byCourse).map(
-                ([courseId, data], i) => {
+              {Object.entries(
+                byCourse
+              ).map(
+                (
+                  [
+                    courseId,
+                    data,
+                  ],
+                  i
+                ) => {
 
                   const pct = (
-                    (data.present / data.total) *
+                    (data.present /
+                      data.total) *
                     100
                   ).toFixed(1);
+
 
                   return (
 
                     <tr
-                      key={courseId}
+                      key={
+                        courseId
+                      }
                       style={{
                         background:
                           i % 2 === 0
@@ -1475,28 +2353,51 @@ function AttendanceSection({ attendance }) {
                       }}
                     >
 
-                      <td style={styles.td}>
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
                         CS
-                        {String(courseId).padStart(
+                        {String(
+                          courseId
+                        ).padStart(
                           3,
                           '0'
                         )}
                       </td>
 
-                      <td style={styles.td}>
-                        {data.present}
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
+                        {
+                          data.present
+                        }
                       </td>
 
-                      <td style={styles.td}>
-                        {data.total}
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
+                        {
+                          data.total
+                        }
                       </td>
 
-                      <td style={styles.td}>
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
 
                         <b
                           style={{
                             color:
-                              pct >= 75
+                              pct >=
+                              75
                                 ? '#22c55e'
                                 : '#ef4444',
                           }}
@@ -1506,25 +2407,34 @@ function AttendanceSection({ attendance }) {
 
                       </td>
 
-                      <td style={styles.td}>
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
 
                         <span
                           style={{
                             padding:
                               '4px 10px',
-                            borderRadius: '12px',
-                            fontSize: '12px',
+                            borderRadius:
+                              '12px',
+                            fontSize:
+                              '12px',
                             background:
-                              pct >= 75
+                              pct >=
+                              75
                                 ? '#d4edda'
                                 : '#f8d7da',
                             color:
-                              pct >= 75
+                              pct >=
+                              75
                                 ? '#155724'
                                 : '#721c24',
                           }}
                         >
-                          {pct >= 75
+                          {pct >=
+                          75
                             ? '✅ Good'
                             : '⚠️ Critical'}
                         </span>
@@ -1534,6 +2444,7 @@ function AttendanceSection({ attendance }) {
                     </tr>
 
                   );
+
                 }
               )}
 
@@ -1546,6 +2457,7 @@ function AttendanceSection({ attendance }) {
       </div>
 
     </div>
+
   );
 }
 
@@ -1554,9 +2466,12 @@ function AttendanceSection({ attendance }) {
    EXAM SCHEDULE
    ===================================================== */
 
-function ExamSchedule({ student }) {
+function ExamSchedule({
+  student,
+}) {
 
   const exams = [
+
     {
       code: 'CS301',
       name: 'Operating Systems',
@@ -1564,6 +2479,7 @@ function ExamSchedule({ student }) {
       time: '10:00 AM',
       room: 'Hall A',
     },
+
     {
       code: 'CS302',
       name: 'Database Management',
@@ -1571,6 +2487,7 @@ function ExamSchedule({ student }) {
       time: '10:00 AM',
       room: 'Hall B',
     },
+
     {
       code: 'MA301',
       name: 'Probability Stats',
@@ -1578,18 +2495,23 @@ function ExamSchedule({ student }) {
       time: '02:00 PM',
       room: 'Hall C',
     },
+
   ];
 
+
   return (
+
     <div>
 
       <h2
         className="student-page-title"
         style={styles.pageTitle}
       >
-        Exam Schedule — Semester{' '}
+        Exam Schedule —
+        Semester{' '}
         {student?.currentSemester}
       </h2>
+
 
       <div
         className="student-info-card"
@@ -1604,8 +2526,10 @@ function ExamSchedule({ student }) {
 
               <tr
                 style={{
-                  background: '#1a3c6e',
-                  color: 'white',
+                  background:
+                    '#1a3c6e',
+                  color:
+                    'white',
                 }}
               >
 
@@ -1615,19 +2539,23 @@ function ExamSchedule({ student }) {
                   'Date',
                   'Time',
                   'Room',
-                ].map((h) => (
+                ].map(
+                  (h) => (
 
-                  <th
-                    key={h}
-                    style={{
-                      padding: '10px',
-                      textAlign: 'left',
-                    }}
-                  >
-                    {h}
-                  </th>
+                    <th
+                      key={h}
+                      style={{
+                        padding:
+                          '10px',
+                        textAlign:
+                          'left',
+                      }}
+                    >
+                      {h}
+                    </th>
 
-                ))}
+                  )
+                )}
 
               </tr>
 
@@ -1636,41 +2564,65 @@ function ExamSchedule({ student }) {
 
             <tbody>
 
-              {exams.map((e, i) => (
+              {exams.map(
+                (e, i) => (
 
-                <tr
-                  key={e.code}
-                  style={{
-                    background:
-                      i % 2 === 0
-                        ? '#f8f9fa'
-                        : 'white',
-                  }}
-                >
+                  <tr
+                    key={
+                      e.code
+                    }
+                    style={{
+                      background:
+                        i % 2 === 0
+                          ? '#f8f9fa'
+                          : 'white',
+                    }}
+                  >
 
-                  <td style={styles.td}>
-                    {e.code}
-                  </td>
+                    <td
+                      style={
+                        styles.td
+                      }
+                    >
+                      {e.code}
+                    </td>
 
-                  <td style={styles.td}>
-                    {e.name}
-                  </td>
+                    <td
+                      style={
+                        styles.td
+                      }
+                    >
+                      {e.name}
+                    </td>
 
-                  <td style={styles.td}>
-                    {e.date}
-                  </td>
+                    <td
+                      style={
+                        styles.td
+                      }
+                    >
+                      {e.date}
+                    </td>
 
-                  <td style={styles.td}>
-                    {e.time}
-                  </td>
+                    <td
+                      style={
+                        styles.td
+                      }
+                    >
+                      {e.time}
+                    </td>
 
-                  <td style={styles.td}>
-                    {e.room}
-                  </td>
+                    <td
+                      style={
+                        styles.td
+                      }
+                    >
+                      {e.room}
+                    </td>
 
-                </tr>
+                  </tr>
 
-              ))}
+                )
+              )}
 
             </tbody>
 
@@ -1681,6 +2633,7 @@ function ExamSchedule({ student }) {
       </div>
 
     </div>
+
   );
 }
 
@@ -1689,23 +2642,42 @@ function ExamSchedule({ student }) {
    FEES
    ===================================================== */
 
-function FeesSection({ fees }) {
+function FeesSection({
+  fees,
+}) {
 
-  const total = fees.reduce(
-    (a, f) => a + (f.amount || 0),
-    0
-  );
-
-  const paid = fees
-    .filter((f) => f.paid)
-    .reduce(
-      (a, f) => a + (f.amount || 0),
+  const total =
+    fees.reduce(
+      (a, f) =>
+        a +
+        (Number(
+          f.amount
+        ) || 0),
       0
     );
 
-  const pending = total - paid;
+
+  const paid =
+    fees
+      .filter(
+        (f) => f.paid
+      )
+      .reduce(
+        (a, f) =>
+          a +
+          (Number(
+            f.amount
+          ) || 0),
+        0
+      );
+
+
+  const pending =
+    total - paid;
+
 
   return (
+
     <div>
 
       <h2
@@ -1722,27 +2694,43 @@ function FeesSection({ fees }) {
           className="student-stat-box"
           style={{
             ...styles.statBox,
-            background: '#1a3c6e',
+            background:
+              '#1a3c6e',
           }}
         >
+
           <h2>
-            ₹{total.toLocaleString()}
+            ₹
+            {total.toLocaleString()}
           </h2>
-          <p>Total Fees</p>
+
+          <p>
+            Total Fees
+          </p>
+
         </div>
+
 
         <div
           className="student-stat-box"
           style={{
             ...styles.statBox,
-            background: '#0f6e3c',
+            background:
+              '#0f6e3c',
           }}
         >
+
           <h2>
-            ₹{paid.toLocaleString()}
+            ₹
+            {paid.toLocaleString()}
           </h2>
-          <p>Paid</p>
+
+          <p>
+            Paid
+          </p>
+
         </div>
+
 
         <div
           className="student-stat-box"
@@ -1754,10 +2742,16 @@ function FeesSection({ fees }) {
                 : '#0f6e3c',
           }}
         >
+
           <h2>
-            ₹{pending.toLocaleString()}
+            ₹
+            {pending.toLocaleString()}
           </h2>
-          <p>Pending</p>
+
+          <p>
+            Pending
+          </p>
+
         </div>
 
       </div>
@@ -1767,7 +2761,8 @@ function FeesSection({ fees }) {
         className="student-info-card"
         style={{
           ...styles.infoCard,
-          marginTop: '20px',
+          marginTop:
+            '20px',
         }}
       >
 
@@ -1779,8 +2774,10 @@ function FeesSection({ fees }) {
 
               <tr
                 style={{
-                  background: '#1a3c6e',
-                  color: 'white',
+                  background:
+                    '#1a3c6e',
+                  color:
+                    'white',
                 }}
               >
 
@@ -1790,19 +2787,23 @@ function FeesSection({ fees }) {
                   'Due Date',
                   'Paid Date',
                   'Status',
-                ].map((h) => (
+                ].map(
+                  (h) => (
 
-                  <th
-                    key={h}
-                    style={{
-                      padding: '10px',
-                      textAlign: 'left',
-                    }}
-                  >
-                    {h}
-                  </th>
+                    <th
+                      key={h}
+                      style={{
+                        padding:
+                          '10px',
+                        textAlign:
+                          'left',
+                      }}
+                    >
+                      {h}
+                    </th>
 
-                ))}
+                  )
+                )}
 
               </tr>
 
@@ -1811,61 +2812,97 @@ function FeesSection({ fees }) {
 
             <tbody>
 
-              {fees.map((f, i) => (
+              {fees.map(
+                (f, i) => (
 
-                <tr
-                  key={f.id}
-                  style={{
-                    background:
-                      i % 2 === 0
-                        ? '#f8f9fa'
-                        : 'white',
-                  }}
-                >
+                  <tr
+                    key={
+                      f.id
+                    }
+                    style={{
+                      background:
+                        i % 2 === 0
+                          ? '#f8f9fa'
+                          : 'white',
+                    }}
+                  >
 
-                  <td style={styles.td}>
-                    Semester {f.semester}
-                  </td>
-
-                  <td style={styles.td}>
-                    ₹{f.amount?.toLocaleString()}
-                  </td>
-
-                  <td style={styles.td}>
-                    {f.dueDate || '—'}
-                  </td>
-
-                  <td style={styles.td}>
-                    {f.paidDate || '—'}
-                  </td>
-
-                  <td style={styles.td}>
-
-                    <span
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        background:
-                          f.paid
-                            ? '#d4edda'
-                            : '#f8d7da',
-                        color:
-                          f.paid
-                            ? '#155724'
-                            : '#721c24',
-                      }}
+                    <td
+                      style={
+                        styles.td
+                      }
                     >
-                      {f.paid
-                        ? '✅ Paid'
-                        : '❌ Pending'}
-                    </span>
+                      Semester{' '}
+                      {
+                        f.semester
+                      }
+                    </td>
 
-                  </td>
+                    <td
+                      style={
+                        styles.td
+                      }
+                    >
+                      ₹
+                      {Number(
+                        f.amount ||
+                          0
+                      ).toLocaleString()}
+                    </td>
 
-                </tr>
+                    <td
+                      style={
+                        styles.td
+                      }
+                    >
+                      {f.dueDate ||
+                        '—'}
+                    </td>
 
-              ))}
+                    <td
+                      style={
+                        styles.td
+                      }
+                    >
+                      {f.paidDate ||
+                        '—'}
+                    </td>
+
+                    <td
+                      style={
+                        styles.td
+                      }
+                    >
+
+                      <span
+                        style={{
+                          padding:
+                            '4px 10px',
+                          borderRadius:
+                            '12px',
+                          fontSize:
+                            '12px',
+                          background:
+                            f.paid
+                              ? '#d4edda'
+                              : '#f8d7da',
+                          color:
+                            f.paid
+                              ? '#155724'
+                              : '#721c24',
+                        }}
+                      >
+                        {f.paid
+                          ? '✅ Paid'
+                          : '❌ Pending'}
+                      </span>
+
+                    </td>
+
+                  </tr>
+
+                )
+              )}
 
             </tbody>
 
@@ -1876,6 +2913,7 @@ function FeesSection({ fees }) {
       </div>
 
     </div>
+
   );
 }
 
@@ -1890,6 +2928,7 @@ function PlacementSection({
 }) {
 
   return (
+
     <div>
 
       <h2
@@ -1907,50 +2946,76 @@ function PlacementSection({
           style={styles.infoCard}
         >
 
-          <p style={{ color: '#666' }}>
-            No placement offers recorded yet.
+          <p
+            style={{
+              color:
+                '#666',
+            }}
+          >
+            No placement offers
+            recorded yet.
           </p>
+
 
           <div
             style={{
-              marginTop: '16px',
-              padding: '16px',
-              background: '#f0f4ff',
-              borderRadius: '8px',
+              marginTop:
+                '16px',
+              padding:
+                '16px',
+              background:
+                '#f0f4ff',
+              borderRadius:
+                '8px',
             }}
           >
 
             <b>
-              💡 Placement Eligibility based on CGPA{' '}
+              💡 Placement
+              Eligibility based
+              on CGPA{' '}
               {student?.cgpa}:
             </b>
 
+
             <ul
               style={{
-                marginTop: '8px',
-                color: '#444',
+                marginTop:
+                  '8px',
+                color:
+                  '#444',
               }}
             >
 
-              {student?.cgpa >= 8.5 ? (
+              {student?.cgpa >=
+              8.5 ? (
 
                 <>
                   <li>
-                    Google, Microsoft, Amazon
+                    Google,
+                    Microsoft,
+                    Amazon
                   </li>
+
                   <li>
-                    Top product companies
+                    Top product
+                    companies
                   </li>
                 </>
 
-              ) : student?.cgpa >= 7.0 ? (
+              ) : student?.cgpa >=
+                7.0 ? (
 
                 <>
                   <li>
-                    Accenture, IBM, Tech Mahindra
+                    Accenture,
+                    IBM,
+                    Tech Mahindra
                   </li>
+
                   <li>
-                    Mid-tier IT companies
+                    Mid-tier IT
+                    companies
                   </li>
                 </>
 
@@ -1958,10 +3023,14 @@ function PlacementSection({
 
                 <>
                   <li>
-                    TCS, Infosys, Wipro
+                    TCS,
+                    Infosys,
+                    Wipro
                   </li>
+
                   <li>
-                    Service-based companies
+                    Service-based
+                    companies
                   </li>
                 </>
 
@@ -1977,121 +3046,141 @@ function PlacementSection({
 
         <div
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
+            display:
+              'flex',
+            flexDirection:
+              'column',
+            gap:
+              '16px',
           }}
         >
 
-          {placement.map((p, i) => (
-
-            <div
-              key={i}
-              className="student-info-card"
-              style={{
-                ...styles.infoCard,
-                borderLeft:
-                  `4px solid ${
-                    p.offerType === 'Full-Time'
-                      ? '#22c55e'
-                      : '#f59e0b'
-                  }`,
-              }}
-            >
+          {placement.map(
+            (p, i) => (
 
               <div
+                key={i}
+                className="student-info-card"
                 style={{
-                  display: 'flex',
-                  justifyContent:
-                    'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '12px',
+                  ...styles.infoCard,
+                  borderLeft:
+                    `4px solid ${
+                      p.offerType ===
+                      'Full-Time'
+                        ? '#22c55e'
+                        : '#f59e0b'
+                    }`,
                 }}
               >
 
-                <div>
-
-                  <h3
-                    style={{
-                      color: '#1a3c6e',
-                      margin: '0 0 8px',
-                    }}
-                  >
-                    🏢 {p.companyName}
-                  </h3>
-
-                  <p
-                    style={{
-                      margin: '0 0 4px',
-                      color: '#555',
-                    }}
-                  >
-                    Role: {p.role}
-                  </p>
-
-                  <p
-                    style={{
-                      margin: '0 0 4px',
-                      color: '#555',
-                    }}
-                  >
-                    Year: {p.placedYear}
-                  </p>
-
-                </div>
-
-
                 <div
                   style={{
-                    textAlign: 'right',
+                    display:
+                      'flex',
+                    justifyContent:
+                      'space-between',
+                    alignItems:
+                      'center',
+                    flexWrap:
+                      'wrap',
+                    gap:
+                      '12px',
                   }}
                 >
 
-                  <div
-                    style={{
-                      fontSize: '24px',
-                      fontWeight: 'bold',
-                      color: '#22c55e',
-                    }}
-                  >
-                    ₹{p.packageLpa} LPA
+                  <div>
+
+                    <h3
+                      style={{
+                        color:
+                          '#1a3c6e',
+                        margin:
+                          '0 0 8px',
+                      }}
+                    >
+                      🏢{' '}
+                      {
+                        p.companyName
+                      }
+                    </h3>
+
+                    <p>
+                      Role:{' '}
+                      {p.role}
+                    </p>
+
+                    <p>
+                      Year:{' '}
+                      {p.placedYear}
+                    </p>
+
                   </div>
 
-                  <span
+
+                  <div
                     style={{
-                      padding:
-                        '4px 12px',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      background:
-                        p.offerType ===
-                        'Full-Time'
-                          ? '#d4edda'
-                          : '#fff3cd',
-                      color:
-                        p.offerType ===
-                        'Full-Time'
-                          ? '#155724'
-                          : '#856404',
+                      textAlign:
+                        'right',
                     }}
                   >
-                    {p.offerType}
-                  </span>
+
+                    <div
+                      style={{
+                        fontSize:
+                          '24px',
+                        fontWeight:
+                          'bold',
+                        color:
+                          '#22c55e',
+                      }}
+                    >
+                      ₹
+                      {
+                        p.packageLpa
+                      }{' '}
+                      LPA
+                    </div>
+
+                    <span
+                      style={{
+                        padding:
+                          '4px 12px',
+                        borderRadius:
+                          '12px',
+                        fontSize:
+                          '12px',
+                        background:
+                          p.offerType ===
+                          'Full-Time'
+                            ? '#d4edda'
+                            : '#fff3cd',
+                        color:
+                          p.offerType ===
+                          'Full-Time'
+                            ? '#155724'
+                            : '#856404',
+                      }}
+                    >
+                      {
+                        p.offerType
+                      }
+                    </span>
+
+                  </div>
 
                 </div>
 
               </div>
 
-            </div>
-
-          ))}
+            )
+          )}
 
         </div>
 
       )}
 
     </div>
+
   );
 }
 
@@ -2106,6 +3195,7 @@ function MentorSection({
 }) {
 
   return (
+
     <div>
 
       <h2
@@ -2123,38 +3213,63 @@ function MentorSection({
 
         {mentor ? (
 
-          <table style={styles.infoTable}>
+          <table
+            style={styles.infoTable}
+          >
 
             <tbody>
 
-              {[
-                [
-                  'Faculty ID',
-                  mentor.facultyId,
-                ],
-                [
-                  'Assigned On',
-                  mentor.assignedAt
-                    ?.split('T')[0],
-                ],
-              ].map(([label, value]) => (
+              <tr
+                style={
+                  styles.infoRow
+                }
+              >
 
-                <tr
-                  key={label}
-                  style={styles.infoRow}
+                <td
+                  style={
+                    styles.infoLabel
+                  }
                 >
+                  Faculty ID
+                </td>
 
-                  <td style={styles.infoLabel}>
-                    {label}
-                  </td>
+                <td
+                  style={
+                    styles.infoValue
+                  }
+                >
+                  {mentor.facultyId ||
+                    '—'}
+                </td>
 
-                  <td style={styles.infoValue}>
-                    {value || '—'}
-                  </td>
+              </tr>
 
-                </tr>
 
-              ))}
+              <tr
+                style={
+                  styles.infoRow
+                }
+              >
+
+                <td
+                  style={
+                    styles.infoLabel
+                  }
+                >
+                  Assigned On
+                </td>
+
+                <td
+                  style={
+                    styles.infoValue
+                  }
+                >
+                  {mentor.assignedAt
+                    ?.split('T')[0] ||
+                    '—'}
+                </td>
+
+              </tr>
 
             </tbody>
 
@@ -2173,8 +3288,10 @@ function MentorSection({
 
       <h3
         style={{
-          color: '#1a3c6e',
-          marginTop: '24px',
+          color:
+            '#1a3c6e',
+          marginTop:
+            '24px',
         }}
       >
         Mentor Meetings
@@ -2187,7 +3304,10 @@ function MentorSection({
           className="student-info-card"
           style={styles.infoCard}
         >
-          <p>No meetings recorded yet.</p>
+          <p>
+            No meetings recorded
+            yet.
+          </p>
         </div>
 
       ) : (
@@ -2205,8 +3325,10 @@ function MentorSection({
 
                 <tr
                   style={{
-                    background: '#1a3c6e',
-                    color: 'white',
+                    background:
+                      '#1a3c6e',
+                    color:
+                      'white',
                   }}
                 >
 
@@ -2214,19 +3336,23 @@ function MentorSection({
                     'Date',
                     'Notes',
                     'Attended',
-                  ].map((h) => (
+                  ].map(
+                    (h) => (
 
-                    <th
-                      key={h}
-                      style={{
-                        padding: '10px',
-                        textAlign: 'left',
-                      }}
-                    >
-                      {h}
-                    </th>
+                      <th
+                        key={h}
+                        style={{
+                          padding:
+                            '10px',
+                          textAlign:
+                            'left',
+                        }}
+                      >
+                        {h}
+                      </th>
 
-                  ))}
+                    )
+                  )}
 
                 </tr>
 
@@ -2235,54 +3361,75 @@ function MentorSection({
 
               <tbody>
 
-                {meetings.map((m, i) => (
+                {meetings.map(
+                  (m, i) => (
 
-                  <tr
-                    key={m.id}
-                    style={{
-                      background:
-                        i % 2 === 0
-                          ? '#f8f9fa'
-                          : 'white',
-                    }}
-                  >
+                    <tr
+                      key={
+                        m.id
+                      }
+                      style={{
+                        background:
+                          i % 2 === 0
+                            ? '#f8f9fa'
+                            : 'white',
+                      }}
+                    >
 
-                    <td style={styles.td}>
-                      {m.meetingDate}
-                    </td>
-
-                    <td style={styles.td}>
-                      {m.notes || '—'}
-                    </td>
-
-                    <td style={styles.td}>
-
-                      <span
-                        style={{
-                          padding:
-                            '4px 10px',
-                          borderRadius: '12px',
-                          fontSize: '12px',
-                          background:
-                            m.attended
-                              ? '#d4edda'
-                              : '#f8d7da',
-                          color:
-                            m.attended
-                              ? '#155724'
-                              : '#721c24',
-                        }}
+                      <td
+                        style={
+                          styles.td
+                        }
                       >
-                        {m.attended
-                          ? '✅ Yes'
-                          : '❌ No'}
-                      </span>
+                        {
+                          m.meetingDate
+                        }
+                      </td>
 
-                    </td>
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
+                        {m.notes ||
+                          '—'}
+                      </td>
 
-                  </tr>
+                      <td
+                        style={
+                          styles.td
+                        }
+                      >
 
-                ))}
+                        <span
+                          style={{
+                            padding:
+                              '4px 10px',
+                            borderRadius:
+                              '12px',
+                            fontSize:
+                              '12px',
+                            background:
+                              m.attended
+                                ? '#d4edda'
+                                : '#f8d7da',
+                            color:
+                              m.attended
+                                ? '#155724'
+                                : '#721c24',
+                          }}
+                        >
+                          {m.attended
+                            ? '✅ Yes'
+                            : '❌ No'}
+                        </span>
+
+                      </td>
+
+                    </tr>
+
+                  )
+                )}
 
               </tbody>
 
@@ -2295,6 +3442,7 @@ function MentorSection({
       )}
 
     </div>
+
   );
 }
 
@@ -2309,76 +3457,113 @@ function GrievanceSection({
   setGrievances,
 }) {
 
-  const [form, setForm] = useState({
-    title: '',
-    description: '',
-    against: 'FACULTY',
-  });
+  const [form, setForm] =
+    useState({
+      title: '',
+      description: '',
+      against:
+        'FACULTY',
+    });
 
-  const [submitting, setSubmitting] =
-    useState(false);
 
-  const [success, setSuccess] =
-    useState('');
+  const [
+    submitting,
+    setSubmitting,
+  ] = useState(false);
 
-  const handleSubmit = async () => {
 
-    if (
-      !form.title ||
-      !form.description
-    ) {
-      return;
-    }
+  const [
+    success,
+    setSuccess,
+  ] = useState('');
 
-    setSubmitting(true);
 
-    try {
+  const handleSubmit =
+    async () => {
 
-      const res =
-        await raiseGrievance(
-          student.userId,
-          form
+      if (
+        !form.title ||
+        !form.description
+      ) {
+
+        return;
+
+      }
+
+
+      setSubmitting(true);
+
+
+      try {
+
+        const res =
+          await raiseGrievance(
+            student.userId,
+            form
+          );
+
+
+        setGrievances(
+          (prev) => [
+            res.data,
+            ...prev,
+          ]
         );
 
-      setGrievances((prev) => [
-        res.data,
-        ...prev,
-      ]);
 
-      setForm({
-        title: '',
-        description: '',
-        against: 'FACULTY',
-      });
+        setForm({
+          title: '',
+          description: '',
+          against:
+            'FACULTY',
+        });
 
-      setSuccess(
-        'Grievance submitted successfully!'
-      );
 
-      setTimeout(
-        () => setSuccess(''),
-        3000
-      );
+        setSuccess(
+          'Grievance submitted successfully!'
+        );
 
-    } catch (err) {
 
-      console.error(err);
+        setTimeout(
+          () =>
+            setSuccess(''),
+          3000
+        );
 
-    } finally {
 
-      setSubmitting(false);
+      } catch (err) {
 
-    }
-  };
+        console.error(
+          'Failed to submit grievance:',
+          err
+        );
+
+      } finally {
+
+        setSubmitting(
+          false
+        );
+
+      }
+
+    };
+
 
   const statusColor = {
+
     OPEN: '#f59e0b',
+
     IN_PROGRESS: '#3b82f6',
+
     RESOLVED: '#22c55e',
+
     REJECTED: '#ef4444',
+
   };
 
+
   return (
+
     <div>
 
       <h2
@@ -2396,32 +3581,44 @@ function GrievanceSection({
 
         <h3
           style={{
-            color: '#1a3c6e',
+            color:
+              '#1a3c6e',
             marginTop: 0,
           }}
         >
-          📝 Raise a New Grievance
+          📝 Raise a New
+          Grievance
         </h3>
 
 
         <div
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
+            display:
+              'flex',
+            flexDirection:
+              'column',
+            gap:
+              '12px',
           }}
         >
 
           <select
-            value={form.against}
+            value={
+              form.against
+            }
             onChange={(e) =>
-              setForm((p) => ({
-                ...p,
-                against: e.target.value,
-              }))
+              setForm(
+                (p) => ({
+                  ...p,
+                  against:
+                    e.target.value,
+                })
+              )
             }
             className="student-input"
-            style={styles.input}
+            style={
+              styles.input
+            }
           >
 
             <option value="FACULTY">
@@ -2437,14 +3634,21 @@ function GrievanceSection({
 
           <input
             className="student-input"
-            style={styles.input}
+            style={
+              styles.input
+            }
             placeholder="Title"
-            value={form.title}
+            value={
+              form.title
+            }
             onChange={(e) =>
-              setForm((p) => ({
-                ...p,
-                title: e.target.value,
-              }))
+              setForm(
+                (p) => ({
+                  ...p,
+                  title:
+                    e.target.value,
+                })
+              )
             }
           />
 
@@ -2453,28 +3657,40 @@ function GrievanceSection({
             className="student-input"
             style={{
               ...styles.input,
-              height: '100px',
-              resize: 'vertical',
+              height:
+                '100px',
+              resize:
+                'vertical',
             }}
             placeholder="Describe your grievance in detail..."
-            value={form.description}
+            value={
+              form.description
+            }
             onChange={(e) =>
-              setForm((p) => ({
-                ...p,
-                description:
-                  e.target.value,
-              }))
+              setForm(
+                (p) => ({
+                  ...p,
+                  description:
+                    e.target.value,
+                })
+              )
             }
           />
 
 
           <button
-            onClick={handleSubmit}
-            disabled={submitting}
+            onClick={
+              handleSubmit
+            }
+            disabled={
+              submitting
+            }
             style={{
               ...styles.submitBtn,
               opacity:
-                submitting ? 0.7 : 1,
+                submitting
+                  ? 0.7
+                  : 1,
             }}
           >
             {submitting
@@ -2484,14 +3700,18 @@ function GrievanceSection({
 
 
           {success && (
+
             <p
               style={{
-                color: '#22c55e',
-                fontWeight: 'bold',
+                color:
+                  '#22c55e',
+                fontWeight:
+                  'bold',
               }}
             >
               ✅ {success}
             </p>
+
           )}
 
         </div>
@@ -2501,7 +3721,8 @@ function GrievanceSection({
 
       <h3
         style={{
-          color: '#1a3c6e',
+          color:
+            '#1a3c6e',
         }}
       >
         My Grievances
@@ -2514,127 +3735,179 @@ function GrievanceSection({
           className="student-info-card"
           style={styles.infoCard}
         >
-          <p>No grievances raised yet.</p>
+
+          <p>
+            No grievances
+            raised yet.
+          </p>
+
         </div>
 
       ) : (
 
         <div
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
+            display:
+              'flex',
+            flexDirection:
+              'column',
+            gap:
+              '12px',
           }}
         >
 
-          {grievances.map((g, i) => (
+          {grievances.map(
+            (g, i) => {
 
-            <div
-              key={i}
-              className="student-info-card"
-              style={{
-                ...styles.infoCard,
-                borderLeft:
-                  `4px solid ${
-                    statusColor[g.status] ||
-                    '#ddd'
-                  }`,
-              }}
-            >
-
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent:
-                    'space-between',
-                  alignItems: 'center',
-                  gap: '10px',
-                  flexWrap: 'wrap',
-                }}
-              >
-
-                <h4
-                  style={{
-                    margin:
-                      '0 0 8px',
-                    color: '#1a3c6e',
-                  }}
-                >
-                  {g.title}
-                </h4>
+              const color =
+                statusColor[
+                  g.status
+                ] ||
+                '#888';
 
 
-                <span
-                  style={{
-                    padding:
-                      '4px 12px',
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    background:
-                      statusColor[g.status] +
-                      '20',
-                    color:
-                      statusColor[g.status],
-                    fontWeight: 'bold',
-                  }}
-                >
-                  {g.status}
-                </span>
-
-              </div>
-
-
-              <p
-                style={{
-                  color: '#555',
-                  margin:
-                    '0 0 8px',
-                  fontSize: '13px',
-                }}
-              >
-                {g.description}
-              </p>
-
-
-              {g.response && (
+              return (
 
                 <div
+                  key={i}
+                  className="student-info-card"
                   style={{
-                    padding: '10px',
-                    background:
-                      '#f0f4ff',
-                    borderRadius: '6px',
-                    fontSize: '13px',
+                    ...styles.infoCard,
+                    borderLeft:
+                      `4px solid ${color}`,
                   }}
                 >
-                  <b>Response:</b>{' '}
-                  {g.response}
+
+                  <div
+                    style={{
+                      display:
+                        'flex',
+                      justifyContent:
+                        'space-between',
+                      alignItems:
+                        'center',
+                      gap:
+                        '10px',
+                      flexWrap:
+                        'wrap',
+                    }}
+                  >
+
+                    <h4
+                      style={{
+                        margin:
+                          '0 0 8px',
+                        color:
+                          '#1a3c6e',
+                      }}
+                    >
+                      {
+                        g.title
+                      }
+                    </h4>
+
+
+                    <span
+                      style={{
+                        padding:
+                          '4px 12px',
+                        borderRadius:
+                          '12px',
+                        fontSize:
+                          '12px',
+                        background:
+                          `${color}20`,
+                        color:
+                          color,
+                        fontWeight:
+                          'bold',
+                      }}
+                    >
+                      {
+                        g.status
+                      }
+                    </span>
+
+                  </div>
+
+
+                  <p
+                    style={{
+                      color:
+                        '#555',
+                      margin:
+                        '0 0 8px',
+                      fontSize:
+                        '13px',
+                    }}
+                  >
+                    {
+                      g.description
+                    }
+                  </p>
+
+
+                  {g.response && (
+
+                    <div
+                      style={{
+                        padding:
+                          '10px',
+                        background:
+                          '#f0f4ff',
+                        borderRadius:
+                          '6px',
+                        fontSize:
+                          '13px',
+                      }}
+                    >
+                      <b>
+                        Response:
+                      </b>{' '}
+                      {
+                        g.response
+                      }
+                    </div>
+
+                  )}
+
+
+                  <p
+                    style={{
+                      color:
+                        '#999',
+                      fontSize:
+                        '12px',
+                      margin:
+                        '8px 0 0',
+                    }}
+                  >
+                    Against:{' '}
+                    {
+                      g.against
+                    }{' '}
+                    ·{' '}
+                    {
+                      g.createdAt
+                        ?.split(
+                          'T'
+                        )[0]
+                    }
+                  </p>
+
                 </div>
 
-              )}
+              );
 
-
-              <p
-                style={{
-                  color: '#999',
-                  fontSize: '12px',
-                  margin:
-                    '8px 0 0',
-                }}
-              >
-                Against: {g.against} ·{' '}
-                {g.createdAt?.split('T')[0]}
-              </p>
-
-            </div>
-
-          ))}
+            }
+          )}
 
         </div>
 
       )}
 
     </div>
+
   );
 }
 
@@ -2648,6 +3921,7 @@ function NotificationsSection({
 }) {
 
   return (
+
     <div>
 
       <h2
@@ -2664,110 +3938,141 @@ function NotificationsSection({
           className="student-info-card"
           style={styles.infoCard}
         >
-          <p>No notifications yet.</p>
+
+          <p>
+            No notifications
+            yet.
+          </p>
+
         </div>
 
       ) : (
 
         <div
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
+            display:
+              'flex',
+            flexDirection:
+              'column',
+            gap:
+              '12px',
           }}
         >
 
-          {notifications.map((n, i) => (
-
-            <div
-              key={i}
-              className="student-info-card"
-              style={{
-                ...styles.infoCard,
-                borderLeft:
-                  `4px solid ${
-                    n.isRead
-                      ? '#ddd'
-                      : '#1a3c6e'
-                  }`,
-                opacity:
-                  n.isRead ? 0.7 : 1,
-              }}
-            >
+          {notifications.map(
+            (n, i) => (
 
               <div
+                key={i}
+                className="student-info-card"
                 style={{
-                  display: 'flex',
-                  justifyContent:
-                    'space-between',
-                  gap: '10px',
+                  ...styles.infoCard,
+                  borderLeft:
+                    `4px solid ${
+                      n.isRead
+                        ? '#ddd'
+                        : '#1a3c6e'
+                    }`,
+                  opacity:
+                    n.isRead
+                      ? 0.7
+                      : 1,
                 }}
               >
 
-                <h4
+                <div
                   style={{
-                    margin:
-                      '0 0 6px',
-                    color: '#1a3c6e',
+                    display:
+                      'flex',
+                    justifyContent:
+                      'space-between',
+                    gap:
+                      '10px',
                   }}
                 >
-                  {n.title}
-                </h4>
 
-
-                {!n.isRead && (
-
-                  <span
+                  <h4
                     style={{
-                      padding:
-                        '2px 8px',
-                      background:
+                      margin:
+                        '0 0 6px',
+                      color:
                         '#1a3c6e',
-                      color: 'white',
-                      borderRadius:
-                        '12px',
-                      fontSize: '11px',
                     }}
                   >
-                    NEW
-                  </span>
+                    {
+                      n.title
+                    }
+                  </h4>
 
-                )}
+
+                  {!n.isRead && (
+
+                    <span
+                      style={{
+                        padding:
+                          '2px 8px',
+                        background:
+                          '#1a3c6e',
+                        color:
+                          'white',
+                        borderRadius:
+                          '12px',
+                        fontSize:
+                          '11px',
+                      }}
+                    >
+                      NEW
+                    </span>
+
+                  )}
+
+                </div>
+
+
+                <p
+                  style={{
+                    color:
+                      '#555',
+                    margin:
+                      '0 0 6px',
+                    fontSize:
+                      '13px',
+                  }}
+                >
+                  {
+                    n.message
+                  }
+                </p>
+
+
+                <p
+                  style={{
+                    color:
+                      '#999',
+                    fontSize:
+                      '12px',
+                    margin: 0,
+                  }}
+                >
+                  {
+                    n.createdAt
+                      ?.split(
+                        'T'
+                      )[0]
+                  }
+                </p>
 
               </div>
 
-
-              <p
-                style={{
-                  color: '#555',
-                  margin:
-                    '0 0 6px',
-                  fontSize: '13px',
-                }}
-              >
-                {n.message}
-              </p>
-
-
-              <p
-                style={{
-                  color: '#999',
-                  fontSize: '12px',
-                  margin: 0,
-                }}
-              >
-                {n.createdAt?.split('T')[0]}
-              </p>
-
-            </div>
-
-          ))}
+            )
+          )}
 
         </div>
 
       )}
 
     </div>
+
   );
 }
 
@@ -2794,62 +4099,109 @@ function AIReport({
   const [generated, setGenerated] =
     useState(false);
 
-  const [sem1, setSem1] =
-    useState(1);
-
-  const [sem2, setSem2] =
-    useState(2);
-
 
   const semesters = [
     ...new Set(
-      marks.map((m) => m.semester)
+      marks
+        .map(
+          (m) => m.semester
+        )
+        .filter(
+          (s) => s != null
+        )
     ),
-  ].sort();
+  ].sort(
+    (a, b) => a - b
+  );
 
 
-  const getMarksBySem = (sem) =>
-    marks.filter(
-      (m) => m.semester === sem
-    );
+  const defaultSem1 =
+    semesters[0] ||
+    student?.currentSemester ||
+    1;
 
 
-  const getAttendancePct = (sem) => {
+  const defaultSem2 =
+    semesters[1] ||
+    semesters[0] ||
+    student?.currentSemester ||
+    1;
 
-    const filtered =
-      attendance.filter(
-        (a) => a.semester === sem
+
+  const [sem1, setSem1] =
+    useState(defaultSem1);
+
+  const [sem2, setSem2] =
+    useState(defaultSem2);
+
+
+  const getMarksBySem =
+    (sem) =>
+      marks.filter(
+        (m) =>
+          m.semester ===
+          sem
       );
 
-    const present =
-      filtered.filter(
-        (a) => a.status === 'PRESENT'
-      ).length;
 
-    return filtered.length > 0
-      ? (
-          (present / filtered.length) *
-          100
-        ).toFixed(1)
-      : 0;
-  };
+  const getAttendancePct =
+    (sem) => {
+
+      const filtered =
+        attendance.filter(
+          (a) =>
+            a.semester ===
+            sem
+        );
 
 
-  const generateReport = async () => {
-
-    setLoading(true);
-    setError('');
-    setReport(null);
-
-    const sem1Marks =
-      getMarksBySem(sem1);
-
-    const sem2Marks =
-      getMarksBySem(sem2);
+      const present =
+        filtered.filter(
+          (a) =>
+            a.status ===
+            'PRESENT'
+        ).length;
 
 
-    const prompt = `
-You are an academic counselor AI for Indian engineering students. Analyze this student's REAL performance data and return ONLY valid JSON. No markdown, no text outside JSON. Use REAL company names only.
+      return filtered.length >
+        0
+        ? (
+            (present /
+              filtered.length) *
+            100
+          ).toFixed(1)
+        : 0;
+
+    };
+
+
+  const generateReport =
+    async () => {
+
+      setLoading(true);
+
+      setError('');
+
+      setReport(null);
+
+
+      const sem1Marks =
+        getMarksBySem(
+          sem1
+        );
+
+      const sem2Marks =
+        getMarksBySem(
+          sem2
+        );
+
+
+      const prompt = `
+You are an academic counselor AI for Indian engineering students.
+
+Analyze this student's REAL performance data.
+
+Return ONLY valid JSON.
 
 Student:
 - Name: ${student?.name}
@@ -2866,8 +4218,8 @@ ${sem1Marks
   .join('\n')}
 
 Attendance Sem ${sem1}: ${getAttendancePct(
-      sem1
-    )}%
+        sem1
+      )}%
 
 Semester ${sem2} Marks:
 ${sem2Marks
@@ -2878,168 +4230,185 @@ ${sem2Marks
   .join('\n')}
 
 Attendance Sem ${sem2}: ${getAttendancePct(
-      sem2
-    )}%
+        sem2
+      )}%
 
-COMPANY RULES (use real names only, no placeholders):
+COMPANY RULES:
 - CGPA 6.0-6.9: TCS, Infosys, Wipro, Cognizant, Capgemini
 - CGPA 7.0-7.9: Accenture, IBM, Tech Mahindra, Mindtree, LTIMindtree
 - CGPA 8.0-8.9: Amazon, Microsoft, Flipkart, Adobe, Paytm
 - CGPA 9.0+: Google, Microsoft, Apple, Goldman Sachs, DE Shaw
-Current CGPA: ${student?.cgpa}
 
-Return this exact JSON:
+Return this exact JSON structure:
+
 {
-  "summary": "honest 2-3 sentence assessment using actual numbers and student name",
-  "semesterComparison": "specific comparison between sem ${sem1} and sem ${sem2} using actual scores — did they improve or decline and by how much",
-  "strengths": ["specific strength with actual marks cited", "another strength"],
-  "weaknesses": ["specific weakness with actual marks cited", "another weakness"],
-  "subjectInsights": [
-    {
-      "courseId": "course id here",
-      "insight": "specific insight based on actual numbers",
-      "priority": "high/medium/low"
-    }
-  ],
-  "attendanceWarnings": [
-    "specific warning if below 75% mentioning exact % and classes needed"
-  ],
-  "placementNow": [
-    "Real Company 1",
-    "Real Company 2",
-    "Real Company 3"
-  ],
-  "placementIfImproved": [
-    "Real Company 1",
-    "Real Company 2",
-    "Real Company 3"
-  ],
-  "actionPlan": [
-    {
-      "step": 1,
-      "action": "specific action for weakest subject",
-      "deadline": "this week"
-    },
-    {
-      "step": 2,
-      "action": "specific attendance action if needed",
-      "deadline": "this month"
-    },
-    {
-      "step": 3,
-      "action": "long term placement prep action",
-      "deadline": "this semester"
-    }
-  ],
-  "motivationalNote": "one honest sentence to ${student?.name} based on actual data"
-}`;
-
-    try {
-
-      const Groq =
-        (
-          await import(
-            'groq-sdk'
-          )
-        ).default;
-
-      const groq = new Groq({
-        apiKey:
-          process.env
-            .REACT_APP_GROQ_API_KEY,
-        dangerouslyAllowBrowser: true,
-      });
+  "summary": "honest assessment using actual numbers and student name",
+  "semesterComparison": "specific comparison between both semesters",
+  "strengths": [],
+  "weaknesses": [],
+  "subjectInsights": [],
+  "attendanceWarnings": [],
+  "placementNow": [],
+  "placementIfImproved": [],
+  "actionPlan": [],
+  "motivationalNote": ""
+}
+`;
 
 
-      const completion =
-        await groq.chat.completions.create({
-          model:
-            'llama-3.1-8b-instant',
+      try {
 
-          messages: [
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-
-          temperature: 0.3,
-          max_tokens: 1500,
-        });
+        const Groq =
+          (
+            await import(
+              'groq-sdk'
+            )
+          ).default;
 
 
-      const raw =
-        completion.choices[0]
-          ?.message?.content || '{}';
+        const groq =
+          new Groq({
 
-      const clean =
-        raw
-          .replace(
-            /```json|```/g,
-            ''
-          )
-          .trim();
+            apiKey:
+              process.env
+                .REACT_APP_GROQ_API_KEY,
 
-      const parsed =
-        JSON.parse(clean);
+            dangerouslyAllowBrowser:
+              true,
 
-      setReport(parsed);
-      setGenerated(true);
+          });
 
-    } catch (err) {
 
-      console.error(err);
+        const completion =
+          await groq.chat.completions.create({
 
-      setError(
-        'Failed to generate report. Check your API key.'
-      );
+            model:
+              'llama-3.1-8b-instant',
 
-    } finally {
+            messages: [
 
-      setLoading(false);
+              {
+                role:
+                  'user',
 
-    }
-  };
+                content:
+                  prompt,
+
+              },
+
+            ],
+
+            temperature:
+              0.3,
+
+            max_tokens:
+              1500,
+
+          });
+
+
+        const raw =
+          completion
+            .choices[0]
+            ?.message
+            ?.content ||
+          '{}';
+
+
+        const clean =
+          raw
+            .replace(
+              /```json|```/g,
+              ''
+            )
+            .trim();
+
+
+        const parsed =
+          JSON.parse(
+            clean
+          );
+
+
+        setReport(
+          parsed
+        );
+
+        setGenerated(
+          true
+        );
+
+
+      } catch (err) {
+
+        console.error(
+          'AI REPORT ERROR:',
+          err
+        );
+
+        setError(
+          'Failed to generate report. Check your API key.'
+        );
+
+      } finally {
+
+        setLoading(
+          false
+        );
+
+      }
+
+    };
 
 
   const priorityColor = {
+
     high: '#ef4444',
+
     medium: '#f59e0b',
+
     low: '#22c55e',
+
   };
 
 
   const priorityBg = {
+
     high: '#fef2f2',
+
     medium: '#fffbeb',
+
     low: '#f0fdf4',
+
   };
 
 
   return (
+
     <div>
 
       <h2
         className="student-page-title"
         style={styles.pageTitle}
       >
-        🤖 AI Performance Report
+        🤖 AI Performance
+        Report
       </h2>
 
-
-      {/* ================= SEMESTER COMPARISON ================= */}
 
       <div
         className="student-info-card"
         style={{
           ...styles.infoCard,
-          marginBottom: '20px',
+          marginBottom:
+            '20px',
         }}
       >
 
         <h3
           style={{
-            color: '#1a3c6e',
+            color:
+              '#1a3c6e',
             margin:
               '0 0 16px',
           }}
@@ -3050,10 +4419,14 @@ Return this exact JSON:
 
         <div
           style={{
-            display: 'flex',
-            gap: '24px',
-            alignItems: 'center',
-            flexWrap: 'wrap',
+            display:
+              'flex',
+            gap:
+              '24px',
+            alignItems:
+              'center',
+            flexWrap:
+              'wrap',
           }}
         >
 
@@ -3061,34 +4434,48 @@ Return this exact JSON:
 
             <label
               style={{
-                fontSize: '13px',
-                color: '#666',
-                display: 'block',
-                marginBottom: '6px',
+                fontSize:
+                  '13px',
+                color:
+                  '#666',
+                display:
+                  'block',
+                marginBottom:
+                  '6px',
               }}
             >
               From Semester
             </label>
 
             <select
-              value={sem1}
+              value={
+                sem1
+              }
               onChange={(e) =>
                 setSem1(
-                  Number(e.target.value)
+                  Number(
+                    e.target.value
+                  )
                 )
               }
               className="student-input"
-              style={styles.input}
+              style={
+                styles.input
+              }
             >
 
-              {semesters.map((s) => (
-                <option
-                  key={s}
-                  value={s}
-                >
-                  Semester {s}
-                </option>
-              ))}
+              {semesters.map(
+                (s) => (
+
+                  <option
+                    key={s}
+                    value={s}
+                  >
+                    Semester {s}
+                  </option>
+
+                )
+              )}
 
             </select>
 
@@ -3097,8 +4484,10 @@ Return this exact JSON:
 
           <div
             style={{
-              fontSize: '24px',
-              marginTop: '16px',
+              fontSize:
+                '24px',
+              marginTop:
+                '16px',
             }}
           >
             →
@@ -3109,34 +4498,48 @@ Return this exact JSON:
 
             <label
               style={{
-                fontSize: '13px',
-                color: '#666',
-                display: 'block',
-                marginBottom: '6px',
+                fontSize:
+                  '13px',
+                color:
+                  '#666',
+                display:
+                  'block',
+                marginBottom:
+                  '6px',
               }}
             >
               To Semester
             </label>
 
             <select
-              value={sem2}
+              value={
+                sem2
+              }
               onChange={(e) =>
                 setSem2(
-                  Number(e.target.value)
+                  Number(
+                    e.target.value
+                  )
                 )
               }
               className="student-input"
-              style={styles.input}
+              style={
+                styles.input
+              }
             >
 
-              {semesters.map((s) => (
-                <option
-                  key={s}
-                  value={s}
-                >
-                  Semester {s}
-                </option>
-              ))}
+              {semesters.map(
+                (s) => (
+
+                  <option
+                    key={s}
+                    value={s}
+                  >
+                    Semester {s}
+                  </option>
+
+                )
+              )}
 
             </select>
 
@@ -3145,150 +4548,87 @@ Return this exact JSON:
         </div>
 
 
-        {/* RESPONSIVE SEMESTER CARDS */}
-
         <div className="student-grid-2">
 
-          <div
-            style={{
-              background: '#f0f4ff',
-              padding: '16px',
-              borderRadius: '8px',
-              marginTop: '16px',
-            }}
-          >
-
-            <b
-              style={{
-                color: '#1a3c6e',
-              }}
-            >
-              Semester {sem1}
-            </b>
-
-            <p
-              style={{
-                margin:
-                  '8px 0 0',
-                fontSize: '13px',
-                color: '#555',
-              }}
-            >
-              Subjects:{' '}
-              {getMarksBySem(sem1).length}
-              {' | '}
-              Attendance:{' '}
-              {getAttendancePct(sem1)}%
-              {' | '}
-              Avg:{' '}
-              {getMarksBySem(sem1)
-                .length > 0
-                ? (
-                    getMarksBySem(
-                      sem1
-                    ).reduce(
-                      (a, m) =>
-                        a + m.total,
-                      0
-                    ) /
-                    getMarksBySem(
-                      sem1
-                    ).length
-                  ).toFixed(1)
-                : 0}
-              %
-            </p>
-
-          </div>
+          <SemesterSummary
+            semester={
+              sem1
+            }
+            marks={
+              getMarksBySem(
+                sem1
+              )
+            }
+            attendance={
+              getAttendancePct(
+                sem1
+              )
+            }
+            color="#1a3c6e"
+          />
 
 
-          <div
-            style={{
-              background: '#f0fff4',
-              padding: '16px',
-              borderRadius: '8px',
-              marginTop: '16px',
-            }}
-          >
-
-            <b
-              style={{
-                color: '#0f6e3c',
-              }}
-            >
-              Semester {sem2}
-            </b>
-
-            <p
-              style={{
-                margin:
-                  '8px 0 0',
-                fontSize: '13px',
-                color: '#555',
-              }}
-            >
-              Subjects:{' '}
-              {getMarksBySem(sem2).length}
-              {' | '}
-              Attendance:{' '}
-              {getAttendancePct(sem2)}%
-              {' | '}
-              Avg:{' '}
-              {getMarksBySem(sem2)
-                .length > 0
-                ? (
-                    getMarksBySem(
-                      sem2
-                    ).reduce(
-                      (a, m) =>
-                        a + m.total,
-                      0
-                    ) /
-                    getMarksBySem(
-                      sem2
-                    ).length
-                  ).toFixed(1)
-                : 0}
-              %
-            </p>
-
-          </div>
+          <SemesterSummary
+            semester={
+              sem2
+            }
+            marks={
+              getMarksBySem(
+                sem2
+              )
+            }
+            attendance={
+              getAttendancePct(
+                sem2
+              )
+            }
+            color="#0f6e3c"
+          />
 
         </div>
 
       </div>
 
 
-      {/* ================= GENERATE BUTTON ================= */}
-
       {!generated && (
 
         <div
           style={{
-            textAlign: 'center',
-            marginBottom: '24px',
+            textAlign:
+              'center',
+            marginBottom:
+              '24px',
           }}
         >
 
           <button
-            onClick={generateReport}
-            disabled={loading}
+            onClick={
+              generateReport
+            }
+            disabled={
+              loading
+            }
             style={{
               padding:
                 '16px 40px',
-              background: loading
-                ? '#94a3b8'
-                : 'linear-gradient(135deg, #1a3c6e, #e94560)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '12px',
-              fontSize: '16px',
-              fontWeight: '700',
-              cursor: loading
-                ? 'not-allowed'
-                : 'pointer',
-              boxShadow:
-                '0 4px 20px rgba(26,60,110,0.3)',
+              background:
+                loading
+                  ? '#94a3b8'
+                  : 'linear-gradient(135deg, #1a3c6e, #e94560)',
+              color:
+                'white',
+              border:
+                'none',
+              borderRadius:
+                '12px',
+              fontSize:
+                '16px',
+              fontWeight:
+                '700',
+              cursor:
+                loading
+                  ? 'not-allowed'
+                  : 'pointer',
             }}
           >
             {loading
@@ -3296,36 +4636,27 @@ Return this exact JSON:
               : '✨ Generate Personalized AI Report'}
           </button>
 
-
-          <p
-            style={{
-              color: '#888',
-              fontSize: '12px',
-              marginTop: '8px',
-            }}
-          >
-            Powered by Llama 3.1 · Uses your
-            actual database records
-          </p>
-
         </div>
 
       )}
 
 
-      {/* ================= ERROR ================= */}
-
       {error && (
 
         <div
           style={{
-            padding: '14px',
-            background: '#fef2f2',
+            padding:
+              '14px',
+            background:
+              '#fef2f2',
             border:
               '1px solid #fecaca',
-            borderRadius: '10px',
-            color: '#dc2626',
-            marginBottom: '16px',
+            borderRadius:
+              '10px',
+            color:
+              '#dc2626',
+            marginBottom:
+              '16px',
           }}
         >
           ❌ {error}
@@ -3334,48 +4665,45 @@ Return this exact JSON:
       )}
 
 
-      {/* ================= GENERATED REPORT ================= */}
-
       {report && (
 
         <div
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '20px',
+            display:
+              'flex',
+            flexDirection:
+              'column',
+            gap:
+              '20px',
           }}
         >
-
-          {/* SUMMARY */}
 
           <div
             style={{
               background:
                 'linear-gradient(135deg, #1a3c6e, #0f3460)',
-              borderRadius: '16px',
-              padding: '28px',
-              color: 'white',
+              borderRadius:
+                '16px',
+              padding:
+                '28px',
+              color:
+                'white',
             }}
           >
 
-            <h3
-              style={{
-                margin:
-                  '0 0 12px',
-              }}
-            >
+            <h3>
               📊 Overall Assessment
             </h3>
 
             <p
               style={{
-                margin:
-                  '0 0 12px',
-                lineHeight: '1.8',
-                opacity: 0.95,
+                lineHeight:
+                  '1.8',
               }}
             >
-              {report.summary}
+              {
+                report.summary
+              }
             </p>
 
             <div
@@ -3384,175 +4712,61 @@ Return this exact JSON:
                   '12px 16px',
                 background:
                   'rgba(255,255,255,0.15)',
-                borderRadius: '8px',
-                fontSize: '14px',
+                borderRadius:
+                  '8px',
               }}
             >
               <b>
-                📈 Semester Comparison:
+                📈 Semester
+                Comparison:
               </b>{' '}
-              {report.semesterComparison}
+              {
+                report.semesterComparison
+              }
             </div>
 
           </div>
 
-
-          {/* STRENGTHS / WEAKNESSES */}
 
           <div className="student-grid-2">
 
-            <div
-              style={{
-                background:
-                  '#f0fdf4',
-                border:
-                  '1px solid #86efac',
-                borderRadius: '12px',
-                padding: '20px',
-              }}
-            >
-
-              <h3
-                style={{
-                  color: '#15803d',
-                  margin:
-                    '0 0 14px',
-                }}
-              >
-                💪 Strengths
-              </h3>
-
-              {report.strengths?.map(
-                (s, i) => (
-
-                  <div
-                    key={i}
-                    style={{
-                      display: 'flex',
-                      gap: '10px',
-                      marginBottom:
-                        '10px',
-                    }}
-                  >
-                    <span
-                      style={{
-                        color:
-                          '#22c55e',
-                      }}
-                    >
-                      ✓
-                    </span>
-
-                    <span
-                      style={{
-                        color:
-                          '#166534',
-                        fontSize:
-                          '13px',
-                        lineHeight:
-                          '1.5',
-                      }}
-                    >
-                      {s}
-                    </span>
-                  </div>
-
-                )
-              )}
-
-            </div>
+            <ReportList
+              title="💪 Strengths"
+              items={
+                report.strengths
+              }
+              color="#15803d"
+              background="#f0fdf4"
+            />
 
 
-            <div
-              style={{
-                background:
-                  '#fef2f2',
-                border:
-                  '1px solid #fca5a5',
-                borderRadius:
-                  '12px',
-                padding: '20px',
-              }}
-            >
-
-              <h3
-                style={{
-                  color:
-                    '#dc2626',
-                  margin:
-                    '0 0 14px',
-                }}
-              >
-                ⚠️ Needs Attention
-              </h3>
-
-              {report.weaknesses?.map(
-                (w, i) => (
-
-                  <div
-                    key={i}
-                    style={{
-                      display: 'flex',
-                      gap: '10px',
-                      marginBottom:
-                        '10px',
-                    }}
-                  >
-
-                    <span
-                      style={{
-                        color:
-                          '#ef4444',
-                      }}
-                    >
-                      !
-                    </span>
-
-                    <span
-                      style={{
-                        color:
-                          '#991b1b',
-                        fontSize:
-                          '13px',
-                        lineHeight:
-                          '1.5',
-                      }}
-                    >
-                      {w}
-                    </span>
-
-                  </div>
-
-                )
-              )}
-
-            </div>
+            <ReportList
+              title="⚠️ Needs Attention"
+              items={
+                report.weaknesses
+              }
+              color="#dc2626"
+              background="#fef2f2"
+            />
 
           </div>
 
 
-          {/* SUBJECT INSIGHTS */}
-
           <div
             className="student-info-card"
-            style={{
-              background: 'white',
-              borderRadius: '12px',
-              padding: '24px',
-              boxShadow:
-                '0 2px 12px rgba(0,0,0,0.08)',
-            }}
+            style={styles.infoCard}
           >
 
             <h3
               style={{
-                color: '#1a3c6e',
-                margin:
-                  '0 0 18px',
+                color:
+                  '#1a3c6e',
               }}
             >
-              🔍 Subject Insights
+              🔍 Subject
+              Insights
             </h3>
+
 
             {report.subjectInsights?.map(
               (s, i) => (
@@ -3560,8 +4774,10 @@ Return this exact JSON:
                 <div
                   key={i}
                   style={{
-                    padding: '14px',
-                    borderRadius: '10px',
+                    padding:
+                      '14px',
+                    borderRadius:
+                      '10px',
                     marginBottom:
                       '10px',
                     background:
@@ -3569,15 +4785,10 @@ Return this exact JSON:
                         s.priority
                       ] ||
                       '#f8f9fa',
-                    border:
-                      `1px solid ${
-                        priorityColor[
-                          s.priority
-                        ] ||
-                        '#ddd'
-                      }40`,
-                    display: 'flex',
-                    gap: '14px',
+                    display:
+                      'flex',
+                    gap:
+                      '14px',
                   }}
                 >
 
@@ -3598,13 +4809,11 @@ Return this exact JSON:
                         '#888',
                       color:
                         'white',
-                      whiteSpace:
-                        'nowrap',
-                      height:
-                        'fit-content',
                     }}
                   >
-                    {s.priority?.toUpperCase()}
+                    {
+                      s.priority?.toUpperCase()
+                    }
                   </div>
 
                   <div>
@@ -3615,20 +4824,16 @@ Return this exact JSON:
                           '#1a3c6e',
                       }}
                     >
-                      Course {s.courseId}
+                      Course{' '}
+                      {
+                        s.courseId
+                      }
                     </b>
 
-                    <p
-                      style={{
-                        margin:
-                          '4px 0 0',
-                        fontSize:
-                          '13px',
-                        color:
-                          '#444',
-                      }}
-                    >
-                      {s.insight}
+                    <p>
+                      {
+                        s.insight
+                      }
                     </p>
 
                   </div>
@@ -3641,10 +4846,8 @@ Return this exact JSON:
           </div>
 
 
-          {/* ATTENDANCE */}
-
-          {report.attendanceWarnings?.length >
-            0 && (
+          {report.attendanceWarnings
+            ?.length > 0 && (
 
             <div
               style={{
@@ -3654,50 +4857,28 @@ Return this exact JSON:
                   '1px solid #fcd34d',
                 borderRadius:
                   '12px',
-                padding: '20px',
+                padding:
+                  '20px',
               }}
             >
 
-              <h3
-                style={{
-                  color:
-                    '#92400e',
-                  margin:
-                    '0 0 12px',
-                }}
-              >
-                📅 Attendance Warnings
+              <h3>
+                📅 Attendance
+                Warnings
               </h3>
 
               {report.attendanceWarnings.map(
                 (w, i) => (
 
-                  <div
+                  <p
                     key={i}
                     style={{
-                      display: 'flex',
-                      gap: '10px',
-                      marginBottom:
-                        '8px',
+                      color:
+                        '#78350f',
                     }}
                   >
-
-                    <span>
-                      ⚠️
-                    </span>
-
-                    <span
-                      style={{
-                        color:
-                          '#78350f',
-                        fontSize:
-                          '13px',
-                      }}
-                    >
-                      {w}
-                    </span>
-
-                  </div>
+                    ⚠️ {w}
+                  </p>
 
                 )
               )}
@@ -3707,121 +4888,29 @@ Return this exact JSON:
           )}
 
 
-          {/* PLACEMENT */}
-
           <div className="student-grid-2">
 
-            <div
-              style={{
-                background:
-                  'white',
-                borderRadius:
-                  '12px',
-                padding: '20px',
-                boxShadow:
-                  '0 2px 12px rgba(0,0,0,0.08)',
-              }}
-            >
-
-              <h3
-                style={{
-                  color:
-                    '#1a3c6e',
-                  margin:
-                    '0 0 14px',
-                }}
-              >
-                🏢 Target Now
-              </h3>
-
-              {report.placementNow?.map(
-                (c, i) => (
-
-                  <div
-                    key={i}
-                    style={{
-                      padding:
-                        '10px 14px',
-                      background:
-                        '#eff6ff',
-                      borderRadius:
-                        '8px',
-                      marginBottom:
-                        '8px',
-                      color:
-                        '#1e40af',
-                      fontWeight:
-                        '500',
-                      fontSize:
-                        '14px',
-                    }}
-                  >
-                    🏷️ {c}
-                  </div>
-
-                )
-              )}
-
-            </div>
+            <CompanyList
+              title="🏢 Target Now"
+              companies={
+                report.placementNow
+              }
+              background="#eff6ff"
+              color="#1e40af"
+            />
 
 
-            <div
-              style={{
-                background:
-                  'white',
-                borderRadius:
-                  '12px',
-                padding: '20px',
-                boxShadow:
-                  '0 2px 12px rgba(0,0,0,0.08)',
-              }}
-            >
-
-              <h3
-                style={{
-                  color:
-                    '#1a3c6e',
-                  margin:
-                    '0 0 14px',
-                }}
-              >
-                🚀 After Improvement
-              </h3>
-
-              {report.placementIfImproved?.map(
-                (c, i) => (
-
-                  <div
-                    key={i}
-                    style={{
-                      padding:
-                        '10px 14px',
-                      background:
-                        '#f0fdf4',
-                      borderRadius:
-                        '8px',
-                      marginBottom:
-                        '8px',
-                      color:
-                        '#166534',
-                      fontWeight:
-                        '500',
-                      fontSize:
-                        '14px',
-                    }}
-                  >
-                    ⭐ {c}
-                  </div>
-
-                )
-              )}
-
-            </div>
+            <CompanyList
+              title="🚀 After Improvement"
+              companies={
+                report.placementIfImproved
+              }
+              background="#f0fdf4"
+              color="#166534"
+            />
 
           </div>
 
-
-          {/* ACTION PLAN */}
 
           <div
             style={{
@@ -3829,9 +4918,8 @@ Return this exact JSON:
                 'white',
               borderRadius:
                 '12px',
-              padding: '24px',
-              boxShadow:
-                '0 2px 12px rgba(0,0,0,0.08)',
+              padding:
+                '24px',
             }}
           >
 
@@ -3839,12 +4927,11 @@ Return this exact JSON:
               style={{
                 color:
                   '#1a3c6e',
-                margin:
-                  '0 0 18px',
               }}
             >
               🎯 Action Plan
             </h3>
+
 
             {report.actionPlan?.map(
               (a, i) => (
@@ -3854,7 +4941,8 @@ Return this exact JSON:
                   style={{
                     display:
                       'flex',
-                    gap: '16px',
+                    gap:
+                      '16px',
                     padding:
                       '16px',
                     background:
@@ -3870,8 +4958,10 @@ Return this exact JSON:
 
                   <div
                     style={{
-                      width: '36px',
-                      height: '36px',
+                      width:
+                        '36px',
+                      height:
+                        '36px',
                       borderRadius:
                         '50%',
                       background:
@@ -3886,11 +4976,13 @@ Return this exact JSON:
                         'center',
                       fontWeight:
                         'bold',
-                      flexShrink: 0,
                     }}
                   >
-                    {a.step}
+                    {
+                      a.step
+                    }
                   </div>
+
 
                   <div>
 
@@ -3900,11 +4992,11 @@ Return this exact JSON:
                           '600',
                         color:
                           '#1a3c6e',
-                        marginBottom:
-                          '6px',
                       }}
                     >
-                      {a.action}
+                      {
+                        a.action
+                      }
                     </div>
 
                     <span
@@ -3921,7 +5013,10 @@ Return this exact JSON:
                           '999px',
                       }}
                     >
-                      📅 {a.deadline}
+                      📅{' '}
+                      {
+                        a.deadline
+                      }
                     </span>
 
                   </div>
@@ -3934,16 +5029,16 @@ Return this exact JSON:
           </div>
 
 
-          {/* MOTIVATIONAL */}
-
           <div
             style={{
               background:
                 'linear-gradient(135deg, #e94560, #1a3c6e)',
               borderRadius:
                 '12px',
-              padding: '24px',
-              color: 'white',
+              padding:
+                '24px',
+              color:
+                'white',
               textAlign:
                 'center',
             }}
@@ -3953,31 +5048,17 @@ Return this exact JSON:
               style={{
                 fontSize:
                   '28px',
-                marginBottom:
-                  '8px',
               }}
             >
               💬
             </div>
 
-            <p
-              style={{
-                margin: 0,
-                fontSize:
-                  '15px',
-                fontStyle:
-                  'italic',
-                lineHeight:
-                  '1.7',
-              }}
-            >
+            <p>
               "{report.motivationalNote}"
             </p>
 
           </div>
 
-
-          {/* REGENERATE */}
 
           <div
             style={{
@@ -3990,8 +5071,15 @@ Return this exact JSON:
 
             <button
               onClick={() => {
-                setGenerated(false);
-                setReport(null);
+
+                setGenerated(
+                  false
+                );
+
+                setReport(
+                  null
+                );
+
               }}
               style={{
                 padding:
@@ -4008,7 +5096,8 @@ Return this exact JSON:
                   'pointer',
               }}
             >
-              🔄 Regenerate Report
+              🔄 Regenerate
+              Report
             </button>
 
           </div>
@@ -4018,6 +5107,214 @@ Return this exact JSON:
       )}
 
     </div>
+
+  );
+}
+
+
+/* =====================================================
+   SMALL AI COMPONENTS
+   ===================================================== */
+
+function SemesterSummary({
+  semester,
+  marks,
+  attendance,
+  color,
+}) {
+
+  const average =
+    marks.length > 0
+      ? (
+          marks.reduce(
+            (sum, m) =>
+              sum +
+              (Number(
+                m.total
+              ) || 0),
+            0
+          ) /
+          marks.length
+        ).toFixed(1)
+      : 0;
+
+
+  return (
+
+    <div
+      style={{
+        background:
+          '#f8f9fa',
+        padding:
+          '16px',
+        borderRadius:
+          '8px',
+        marginTop:
+          '16px',
+      }}
+    >
+
+      <b
+        style={{
+          color,
+        }}
+      >
+        Semester{' '}
+        {semester}
+      </b>
+
+      <p
+        style={{
+          fontSize:
+            '13px',
+          color:
+            '#555',
+        }}
+      >
+        Subjects:{' '}
+        {marks.length}
+        {' | '}
+        Attendance:{' '}
+        {attendance}%
+        {' | '}
+        Avg:{' '}
+        {average}%
+      </p>
+
+    </div>
+
+  );
+}
+
+
+function ReportList({
+  title,
+  items,
+  color,
+  background,
+}) {
+
+  return (
+
+    <div
+      style={{
+        background,
+        borderRadius:
+          '12px',
+        padding:
+          '20px',
+      }}
+    >
+
+      <h3
+        style={{
+          color,
+        }}
+      >
+        {title}
+      </h3>
+
+
+      {items?.map(
+        (item, i) => (
+
+          <div
+            key={i}
+            style={{
+              display:
+                'flex',
+              gap:
+                '10px',
+              marginBottom:
+                '10px',
+              fontSize:
+                '13px',
+            }}
+          >
+
+            <span
+              style={{
+                color,
+              }}
+            >
+              ✓
+            </span>
+
+            <span>
+              {item}
+            </span>
+
+          </div>
+
+        )
+      )}
+
+    </div>
+
+  );
+}
+
+
+function CompanyList({
+  title,
+  companies,
+  background,
+  color,
+}) {
+
+  return (
+
+    <div
+      style={{
+        background:
+          'white',
+        borderRadius:
+          '12px',
+        padding:
+          '20px',
+        boxShadow:
+          '0 2px 12px rgba(0,0,0,0.08)',
+      }}
+    >
+
+      <h3
+        style={{
+          color:
+            '#1a3c6e',
+        }}
+      >
+        {title}
+      </h3>
+
+
+      {companies?.map(
+        (company, i) => (
+
+          <div
+            key={i}
+            style={{
+              padding:
+                '10px 14px',
+              background,
+              borderRadius:
+                '8px',
+              marginBottom:
+                '8px',
+              color,
+              fontWeight:
+                '500',
+              fontSize:
+                '14px',
+            }}
+          >
+            🏷️ {company}
+          </div>
+
+        )
+      )}
+
+    </div>
+
   );
 }
 
@@ -4028,54 +5325,46 @@ Return this exact JSON:
 
 const styles = {
 
-  container: {
-    minHeight: '100vh',
-    background: '#f0f2f5',
-    fontFamily:
-      'Arial, sans-serif',
-  },
-
-  nav: {
-    background: '#1a3c6e',
-    color: 'white',
-    padding: '12px 24px',
-    display: 'flex',
-    justifyContent:
-      'space-between',
-    alignItems:
-      'center',
-  },
-
   navLeft: {
-    display: 'flex',
+    display:
+      'flex',
     alignItems:
       'center',
-    gap: '12px',
+    gap:
+      '12px',
   },
 
   logo: {
-    fontSize: '32px',
+    fontSize:
+      '32px',
   },
 
   uniName: {
-    fontWeight: 'bold',
-    fontSize: '16px',
+    fontWeight:
+      'bold',
+    fontSize:
+      '16px',
   },
 
   uniSub: {
-    fontSize: '12px',
-    opacity: 0.8,
+    fontSize:
+      '12px',
+    opacity:
+      0.8,
   },
 
   navRight: {
-    display: 'flex',
+    display:
+      'flex',
     alignItems:
       'center',
-    gap: '16px',
+    gap:
+      '16px',
   },
 
   welcome: {
-    fontSize: '14px',
+    fontSize:
+      '14px',
   },
 
   logoutBtn: {
@@ -4091,22 +5380,6 @@ const styles = {
       '4px',
     cursor:
       'pointer',
-  },
-
-  body: {
-    display:
-      'flex',
-    minHeight:
-      'calc(100vh - 60px)',
-  },
-
-  sidebar: {
-    width:
-      '220px',
-    background:
-      'white',
-    borderRight:
-      '1px solid #ddd',
   },
 
   sidebarTitle: {
@@ -4159,14 +5432,6 @@ const styles = {
       '#666',
   },
 
-  main: {
-    flex: 1,
-    padding:
-      '24px',
-    overflowY:
-      'auto',
-  },
-
   pageTitle: {
     color:
       '#1a3c6e',
@@ -4188,37 +5453,6 @@ const styles = {
     boxShadow:
       '0 2px 8px rgba(0,0,0,0.08)',
     marginBottom:
-      '16px',
-  },
-
-  grid2: {
-    display:
-      'grid',
-    gridTemplateColumns:
-      '1fr 1fr',
-    gap:
-      '16px',
-  },
-
-  grid3: {
-    display:
-      'grid',
-    gridTemplateColumns:
-      '1fr 1fr 1fr',
-    gap:
-      '16px',
-    marginTop:
-      '16px',
-  },
-
-  grid4: {
-    display:
-      'grid',
-    gridTemplateColumns:
-      '1fr 1fr 1fr 1fr',
-    gap:
-      '16px',
-    marginTop:
       '16px',
   },
 

@@ -20,6 +20,7 @@ export const login = (email, password) =>
 
 // ── STUDENTS ──────────────────────────────────────
 export const getStudents = () => API.get('/students');
+export const getCurrentStudent = () => API.get('/students/me');
 export const getStudentById = (id) => API.get(`/students/${id}`);
 export const getStudentByRollNo = (rollNo) => API.get(`/students/roll/${rollNo}`);
 export const getStudentsBySemester = (sem) => API.get(`/students/semester/${sem}`);
@@ -108,5 +109,4 @@ export const getUnpaidFees = () =>
     API.get('/admin/fees/unpaid');
 export const broadcastNotification = (data) =>
     API.post('/admin/notifications/broadcast', data);
-
 export default API;
